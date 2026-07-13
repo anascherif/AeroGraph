@@ -1,0 +1,59 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment variables
+.env
+.env.local
+
+# Model files (large)
+backend/models/*.onnx
+backend/models/*.pt
+backend/models/*.pth
+
+# Data storage
+data/chroma/
+data/sessions/
+data/recordings/
+data/*.db
+data/*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Project brief (not pushed)
+AEROGRAPH_BRIEF.md
+
+# Tool artifacts
+.code-review-graph/
