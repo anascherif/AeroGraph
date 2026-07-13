@@ -1,0 +1,40 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==15.0.1
+python-multipart==0.0.29
+
+# Settings & env
+python-dotenv==1.0.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Computer vision & inference
+opencv-python-headless==4.10.0.84
+numpy==2.2.0
+ultralytics==8.3.0
+onnxruntime==1.20.1
+
+# Vector database
+chromadb==0.5.23
+
+# CLIP for keyframe embeddings
+open-clip-torch==2.29.0
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+# Install torch CPU build with:
+#   pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
+
+# LLM client (NVIDIA NIM is OpenAI-compatible)
+openai==1.58.1
+
+# Speech-to-text
+groq==1.1.2
+faster-whisper==1.0.3
+
+# Text-to-speech
+pyttsx3==2.91
+
+# HTTP & utilities
+httpx==0.28.1
+pillow==11.0.0
