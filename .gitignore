@@ -19,9 +19,10 @@ build/
 .env.local
 
 # Model files (large)
-backend/models/*.onnx
-backend/models/*.pt
-backend/models/*.pth
+*.onnx
+*.pt
+*.pth
+!backend/models/.gitkeep
 
 # Data storage
 data/chroma/
@@ -29,6 +30,10 @@ data/sessions/
 data/recordings/
 data/*.db
 data/*.sqlite
+data/*.jpg
+data/*.png
+data/*.mp4
+data/*.avi
 
 # IDE
 .vscode/

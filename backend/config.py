@@ -65,14 +65,26 @@ def ensure_dirs() -> None:
 # We keep a focused subset per the brief ("not everything — just what matters
 # for navigation and memory").
 DETECTION_CLASSES: list[str] = [
+    # People
     "person",
+    # Vehicles (outdoor navigation / hazards)
+    "bicycle",
+    "car",
+    "motorcycle",
+    "bus",
+    "truck",
+    # Furniture / structural anchors
+    "bench",
     "chair",
     "couch",
     "bed",
     "dining table",
     "toilet",
+    "potted plant",
+    # Electronics / appliances
     "tv",
     "laptop",
+    "mouse",
     "remote",
     "keyboard",
     "cell phone",
@@ -80,17 +92,20 @@ DETECTION_CLASSES: list[str] = [
     "oven",
     "sink",
     "refrigerator",
-    "book",
-    "clock",
-    "vase",
-    "scissors",
-    "teddy bear",
+    # Personal items / portable hazards
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    # Kitchenware / small objects
     "bottle",
     "cup",
     "fork",
     "knife",
     "spoon",
     "bowl",
+    # Food (common on tables)
     "banana",
     "apple",
     "sandwich",
@@ -101,11 +116,12 @@ DETECTION_CLASSES: list[str] = [
     "pizza",
     "donut",
     "cake",
-    "handbag",
-    "suitcase",
-    "backpack",
-    "tie",
-    "suitcase",
+    # Misc decor / small items
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
 ]
 
 # Confidence threshold for keeping a detection
