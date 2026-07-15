@@ -16,6 +16,7 @@ from backend.config import (
     ensure_dirs,
     CHROMA_PATH,
     MODELS_DIR,
+    SESSIONS_DIR,
     DETECTION_CLASSES,
     DETECTION_CONFIDENCE,
 )
@@ -41,7 +42,18 @@ def _on_startup() -> None:
     ensure_dirs()
     logger.info("Data dir ready: %s", CHROMA_PATH)
     logger.info("Models dir ready: %s", MODELS_DIR)
+    logger.info("Sessions dir ready: %s", SESSIONS_DIR)
     runtime.chroma_ready = CHROMA_PATH.exists()
+
+    # --- Initialise SpatialGraph (lightweight, JSON-backed) ---
+    try:
+        from backend.pipeline.spatial_graph import SpatialGraph
+
+        registry.spatial_graph = SpatialGraph(sessions_dir=SESSIONS_DIR)
+        runtime.spatial_graph_ready = True
+    except Exception:
+        logger.exception("Failed to init SpatialGraph; session API will be degraded.")
+        runtime.spatial_graph_ready = False
 
     # --- Load YOLO11n detector (export onnx if needed) ---
     t0 = time.perf_counter()
