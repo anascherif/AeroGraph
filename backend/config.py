@@ -52,12 +52,6 @@ MODELS_DIR: Path = PROJECT_ROOT / os.getenv("MODELS_DIR", "backend/models")
 CHROMA_PATH: Path = PROJECT_ROOT / os.getenv("CHROMA_PATH", "data/chroma")
 
 
-def ensure_dirs() -> None:
-    """Create the data/models directories if they don't exist yet."""
-    for p in (DATA_DIR, MODELS_DIR, CHROMA_PATH):
-        p.mkdir(parents=True, exist_ok=True)
-
-
 # --- Detection pipeline constants ---
 
 # YOLO11n COCO classes relevant for spatial navigation & memory.
@@ -136,6 +130,31 @@ KEYFRAME_INTERVAL_S: float = 3.0
 PIXELS_PER_METER: float = 120.0
 
 
+# --- Spatial graph / session settings ---
+
+# Where per-session manifests are persisted (one JSON file per session).
+SESSIONS_DIR: Path = DATA_DIR / "sessions"
+
+# Time window (seconds) used to group detections into "scenes".
+# Detections closer together than this in time are assumed to come from
+# roughly the same camera viewpoint.
+SCENE_WINDOW_S: float = 3.0
+
+# Maximum gap (seconds) between two detections of the same class before we
+# consider them separate sightings (object left the scene and came back).
+SIGHTING_GAP_S: float = 6.0
+
+# Minimum number of frames an object must appear in to be considered a
+# "stable" entry in the scene (filters out flickering / single-frame noise).
+MIN_FRAMES_FOR_STABLE: int = 2
+
+
+def ensure_dirs() -> None:
+    """Create the data / models / sessions directories if missing."""
+    for p in (DATA_DIR, MODELS_DIR, CHROMA_PATH, SESSIONS_DIR):
+        p.mkdir(parents=True, exist_ok=True)
+
+
 # --- Runtime status (populated on startup) ---
 class RuntimeState:
     """Mutable holder for cross-module runtime info (loaded models, etc.)."""
@@ -143,6 +162,7 @@ class RuntimeState:
     yolo_loaded: bool = False
     chroma_ready: bool = False
     clip_loaded: bool = False
+    spatial_graph_ready: bool = False
 
 
 runtime = RuntimeState()
