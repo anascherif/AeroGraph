@@ -22,6 +22,7 @@ from backend.config import (
 )
 from backend.pipeline import registry
 from backend.pipeline.export_model import ensure_onnx_model
+from backend.api.session import router as session_router
 
 logger = logging.getLogger("aerograph")
 logging.basicConfig(
@@ -77,6 +78,10 @@ def _on_startup() -> None:
         runtime.yolo_loaded = False
 
 
+# Routers
+app.include_router(session_router)
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
     """Service health check."""
@@ -85,6 +90,7 @@ def health() -> dict[str, object]:
         "yolo_loaded": runtime.yolo_loaded,
         "chroma_ready": runtime.chroma_ready,
         "clip_loaded": runtime.clip_loaded,
+        "spatial_graph_ready": runtime.spatial_graph_ready,
     }
 
 
