@@ -11,12 +11,14 @@ import logging
 from typing import Optional
 
 from backend.pipeline.detector import Detector
+from backend.pipeline.spatial_graph import SpatialGraph
 
 logger = logging.getLogger("aerograph.registry")
 
 
 # Held instances (populated on startup)
 detector: Optional[Detector] = None
+spatial_graph: Optional[SpatialGraph] = None
 
 
 def get_detector() -> Detector:
@@ -24,3 +26,10 @@ def get_detector() -> Detector:
     if detector is None:
         raise RuntimeError("Detector has not been initialised yet.")
     return detector
+
+
+def get_spatial_graph() -> SpatialGraph:
+    """Return the shared :class:`SpatialGraph`, raising if it is not loaded."""
+    if spatial_graph is None:
+        raise RuntimeError("SpatialGraph has not been initialised yet.")
+    return spatial_graph
