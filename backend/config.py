@@ -148,6 +148,35 @@ SIGHTING_GAP_S: float = 6.0
 # "stable" entry in the scene (filters out flickering / single-frame noise).
 MIN_FRAMES_FOR_STABLE: int = 2
 
+# Pixel distance (in normalised centroid coords, 0-1) that a centroid must
+# shift between two sessions for the object to be flagged as "moved".
+CENTROID_SHIFT_THRESHOLD: float = 0.12
+
+
+# --- Object categories for temporal diff ---
+# Used by the diff engine to classify the *importance* of a change.
+# "hazard" classes are the most important for navigation warnings.
+
+OBJECT_CATEGORIES: dict[str, str] = {
+    **{c: "anchor" for c in [
+        "bench", "chair", "couch", "bed", "dining table", "toilet",
+        "potted plant", "tv", "sink", "refrigerator", "oven", "microwave",
+    ]},
+    **{c: "hazard" for c in [
+        "bottle", "backpack", "handbag", "suitcase", "umbrella", "box",
+        "scissors", "knife", "bowl", "vase", "teddy bear",
+    ]},
+    **{c: "personal" for c in [
+        "cell phone", "laptop", "mouse", "remote", "keyboard", "book",
+        "cup", "fork", "spoon", "clock", "tie", "person",
+    ]},
+}
+
+
+def object_category(class_name: str) -> str:
+    """Return the category for a class, defaulting to ``"personal"``."""
+    return OBJECT_CATEGORIES.get(class_name, "personal")
+
 
 def ensure_dirs() -> None:
     """Create the data / models / sessions directories if missing."""
