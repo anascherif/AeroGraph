@@ -23,6 +23,8 @@ from backend.config import (
 from backend.pipeline import registry
 from backend.pipeline.export_model import ensure_onnx_model
 from backend.api.session import router as session_router
+from backend.api.diff import router as diff_router
+from backend.api.query import router as query_router
 
 logger = logging.getLogger("aerograph")
 logging.basicConfig(
@@ -77,9 +79,14 @@ def _on_startup() -> None:
         logger.exception("Failed to load YOLO detector; pipeline will be degraded.")
         runtime.yolo_loaded = False
 
+    # NOTE: CLIP keyframe index is lazy-loaded on first query request
+    # to avoid blocking server startup with the ~2min model download.
+
 
 # Routers
 app.include_router(session_router)
+app.include_router(diff_router)
+app.include_router(query_router)
 
 
 @app.get("/health")
