@@ -6,10 +6,7 @@ Provides both blocking ``speak()`` and a streaming ``speak_stream()``.
 
 from __future__ import annotations
 
-import io
 import logging
-import queue
-import tempfile
 import threading
 from pathlib import Path
 

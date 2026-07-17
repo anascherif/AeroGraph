@@ -158,7 +158,7 @@ class KeyframeIndex:
         """Return the most recent keyframes for a session."""
         results = self._collection.get(
             where={"session_id": session_id},
-            include=["metadatas", "embeddings"],
+            include=["metadatas"],  # don't fetch embeddings
         )
         items = []
         for i, kf_id in enumerate(results["ids"]):

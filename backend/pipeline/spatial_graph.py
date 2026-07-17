@@ -238,6 +238,8 @@ class SpatialGraph:
                         "last_seen": s["last_seen"],
                         "last_bbox": s["last_bbox"],
                         "last_centroid": s["last_centroid"],
+                        "frame_w": s.get("frame_w"),
+                        "frame_h": s.get("frame_h"),
                         "avg_confidence": s["avg_confidence"],
                         "scenes_seen_in": [scene["index"]],
                         "co_occurred_with": set(co),
@@ -249,6 +251,8 @@ class SpatialGraph:
                         e["last_seen"] = s["last_seen"]
                         e["last_bbox"] = s["last_bbox"]
                         e["last_centroid"] = s["last_centroid"]
+                        e["frame_w"] = s.get("frame_w")
+                        e["frame_h"] = s.get("frame_h")
                     e["scenes_seen_in"].append(scene["index"])
                     e["co_occurred_with"].update(co)
         # finalise: sets -> sorted lists, apply stability filter

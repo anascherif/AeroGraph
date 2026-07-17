@@ -43,11 +43,10 @@ MISSING = "missing"
 NEW = "new"
 CONTEXT_CHANGED = "context_changed"
 
-# Co-occurrence overlap required to trust a centroid shift as "moved".
-# We only require *one* common neighbor (same neighbourhood / camera angle),
-# not a majority overlap — the camera viewpoint is close enough as long as
-# at least one surrounding object is shared.
-_CO_OCCURRENCE_TRUST = 0.0  # disabled; we use a shared-neighbor check instead
+# We only trust a centroid "moved" classification when at least one
+# neighbour object is shared between the two sessions (same neighbourhood /
+# camera angle). With no shared neighbours the camera viewpoint has likely
+# changed and a pixel-space centroid shift is meaningless.
 
 
 class TemporalDiff:
@@ -164,13 +163,6 @@ class TemporalDiff:
         co_before = set(ref.get("co_occurred_with", []))
         co_after = set(cur.get("co_occurred_with", []))
 
-        # Co-occurrence Jaccard similarity
-        union = co_before | co_after
-        if union:
-            jaccard = len(co_before & co_after) / len(union)
-        else:
-            jaccard = 1.0
-
         # Context changed?
         context_changed = co_before != co_after and co_before and co_after
 
@@ -196,7 +188,14 @@ class TemporalDiff:
         moved = shift >= CENTROID_SHIFT_THRESHOLD and shared_neighbors
 
         if moved:
-            displacement_m = round(shift * PIXELS_PER_METER / 100.0, 2)
+            # Convert normalised shift back to pixel distance on the reference
+            # frame, then divide by PIXELS_PER_METER for an approx real-world
+            # distance. We use the average of the x/y pixel spans because the
+            # shift is the Euclidean distance of the (normalised) deltas.
+            ref_w = ref.get("frame_w") or 640
+            ref_h = ref.get("frame_h") or 480
+            avg_ref_px = (ref_w + ref_h) / 2.0
+            displacement_m = round(shift * avg_ref_px / PIXELS_PER_METER, 2)
             direction = self._direction(rnx, rny, cnx, cny)
             note = self._moved_note(cls, displacement_m, direction, cat)
             return {
