@@ -130,6 +130,20 @@ KEYFRAME_INTERVAL_S: float = 3.0
 PIXELS_PER_METER: float = 120.0
 
 
+# --- Live stream settings ---
+
+# Target frame rate for the detection loop.  On CPU-only, YOLO11n achieves
+# ~5–15 FPS, so we default to 5 to leave headroom for the WebSocket + graph
+# ingestion work. The actual rate adapts: if inference takes longer than the
+# interval, the loop simply continues without sleeping.
+STREAM_FPS: int = 5
+
+# JPEG quality (0–100) for the optional frame preview sent over the WebSocket.
+# Lower = smaller message, faster transfer. 70 gives a clear-ish image at
+# ~30 KB per frame on 640×480.
+STREAM_JPEG_QUALITY: int = 70
+
+
 # --- Spatial graph / session settings ---
 
 # Where per-session manifests are persisted (one JSON file per session).
@@ -192,6 +206,7 @@ class RuntimeState:
     chroma_ready: bool = False
     clip_loaded: bool = False
     spatial_graph_ready: bool = False
+    camera_streaming: bool = False
 
 
 runtime = RuntimeState()

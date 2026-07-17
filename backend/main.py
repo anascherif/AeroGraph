@@ -25,6 +25,7 @@ from backend.pipeline.export_model import ensure_onnx_model
 from backend.api.session import router as session_router
 from backend.api.diff import router as diff_router
 from backend.api.query import router as query_router
+from backend.api.stream import router as stream_router
 
 logger = logging.getLogger("aerograph")
 logging.basicConfig(
@@ -87,6 +88,7 @@ def _on_startup() -> None:
 app.include_router(session_router)
 app.include_router(diff_router)
 app.include_router(query_router)
+app.include_router(stream_router)
 
 
 @app.get("/health")
@@ -98,6 +100,7 @@ def health() -> dict[str, object]:
         "chroma_ready": runtime.chroma_ready,
         "clip_loaded": runtime.clip_loaded,
         "spatial_graph_ready": runtime.spatial_graph_ready,
+        "camera_streaming": runtime.camera_streaming,
     }
 
 

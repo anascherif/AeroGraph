@@ -20,6 +20,7 @@ logger = logging.getLogger("aerograph.registry")
 detector: Optional[Detector] = None
 spatial_graph: Optional[SpatialGraph] = None
 keyframe_index: Any = None  # KeyframeIndex — lazy, avoids heavy CLIP import at startup
+camera_stream: Any = None  # CameraStream — lazy, avoids heavy cv2 import at startup
 
 
 def get_detector() -> Detector:
@@ -41,3 +42,12 @@ def get_keyframe_index():
     if keyframe_index is None:
         raise RuntimeError("KeyframeIndex has not been initialised yet.")
     return keyframe_index
+
+
+def get_camera_stream():
+    """Return the shared :class:`CameraStream`, lazily creating it on first call."""
+    global camera_stream
+    if camera_stream is None:
+        from backend.pipeline.camera_stream import CameraStream
+        camera_stream = CameraStream()
+    return camera_stream
