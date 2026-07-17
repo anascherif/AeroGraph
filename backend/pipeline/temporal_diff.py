@@ -14,10 +14,10 @@ Compares two sessions at the same location (a "reference" — last visit, and
 Each change carries a human-readable ``note`` that feeds directly into the
 Phase 4 LLM answer generation.
 
-Because the camera moves with the user, the "moved" status relies on a
-co-occurrence similarity heuristic: we only trust centroid shifts when the
-neighbouring object set is similar between the two sessions (same camera
-viewpoint).
+Because the camera moves with the user, the "moved" status requires at
+least one shared neighbour between sessions — if the surrounding objects
+changed, the camera viewpoint likely changed too and pixel-space centroid
+shifts are unreliable.
 """
 
 from __future__ import annotations
@@ -178,7 +178,13 @@ class TemporalDiff:
         rny = rc[1] / ref_h if ref_h else 0
         cnx = cc[0] / cur_w if cur_w else 0
         cny = cc[1] / cur_h if cur_h else 0
-        shift = math.hypot(cnx - rnx, cny - rny)
+
+        # Delta in normalised coords
+        dx_norm = cnx - rnx
+        dy_norm = cny - rny
+
+        # Shift in normalised space (used for threshold check)
+        shift = math.hypot(dx_norm, dy_norm)
 
         # Trust the centroid shift only if at least one neighbor is shared
         # (same camera angle / neighbourhood). With no shared neighbors we
@@ -188,14 +194,13 @@ class TemporalDiff:
         moved = shift >= CENTROID_SHIFT_THRESHOLD and shared_neighbors
 
         if moved:
-            # Convert normalised shift back to pixel distance on the reference
-            # frame, then divide by PIXELS_PER_METER for an approx real-world
-            # distance. We use the average of the x/y pixel spans because the
-            # shift is the Euclidean distance of the (normalised) deltas.
-            ref_w = ref.get("frame_w") or 640
-            ref_h = ref.get("frame_h") or 480
-            avg_ref_px = (ref_w + ref_h) / 2.0
-            displacement_m = round(shift * avg_ref_px / PIXELS_PER_METER, 2)
+            # Convert normalised deltas back to reference-frame pixels, then
+            # to meters. This is exact for same-resolution frames and degrades
+            # gracefully if resolutions differ.
+            dx_px = dx_norm * ref_w
+            dy_px = dy_norm * ref_h
+            displacement_px = math.hypot(dx_px, dy_px)
+            displacement_m = round(displacement_px / PIXELS_PER_METER, 2)
             direction = self._direction(rnx, rny, cnx, cny)
             note = self._moved_note(cls, displacement_m, direction, cat)
             return {
