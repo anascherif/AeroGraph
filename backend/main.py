@@ -10,6 +10,7 @@ import logging
 import time
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import (
     runtime,
@@ -38,6 +39,15 @@ app = FastAPI(
     title="AeroGraph",
     description="Spatial memory engine for visually impaired users.",
     version="0.1.0",
+)
+
+# CORS for local front-end dev (v0, Figma, etc.)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
