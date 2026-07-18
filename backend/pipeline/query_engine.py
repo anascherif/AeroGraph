@@ -80,6 +80,9 @@ class QueryEngine:
         # 4. Session metadata
         if current:
             start = current.get("started_at", "")
+            if isinstance(start, (int, float)):
+                import time as _time
+                start = _time.strftime("%H:%M", _time.localtime(start))
             parts.append(f"Current session started at {start}, location: {location_name or current.get('location_name', 'unknown')}")
 
         return "\n\n".join(parts) if parts else "No spatial memory data available yet."

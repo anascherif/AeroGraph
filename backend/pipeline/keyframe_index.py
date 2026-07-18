@@ -134,13 +134,13 @@ class KeyframeIndex:
         text: str,
         *,
         n_results: int = 5,
-        location_filter: str = "",
+        location_name: str = "",
     ) -> list[dict]:
         """Find keyframes matching a text description."""
         emb = self.encode_text(text)
         where = (
-            {"location_name": location_filter}
-            if location_filter
+            {"location_name": location_name}
+            if location_name
             else None
         )
         results = self._collection.query(

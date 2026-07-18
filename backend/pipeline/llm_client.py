@@ -87,7 +87,7 @@ def ask(
         return text
     except Exception:
         logger.exception("LLM request failed")
-        return "Sorry, I couldn't process that right now."
+        raise RuntimeError("LLM request failed. Please retry or check the service.")
 
 
 def ask_stream(
