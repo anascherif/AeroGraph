@@ -93,16 +93,17 @@ List deduplicated objects for a session (one entry per physical object, with co-
   "location_name": "kitchen",
   "objects": [
     {
-      "object_id": "obj_1",
-      "class_name": "cup",
+      "class": "cup",
       "category": "personal",
-      "centroid_px": [320, 240],
-      "bbox_px": [300, 220, 340, 260],
+      "total_frames": 12,
       "first_seen": 1721308800.123,
       "last_seen": 1721308850.789,
+      "last_bbox": [300, 220, 340, 260],
+      "last_centroid": [320, 240],
       "frame_w": 640,
       "frame_h": 480,
-      "neighbours": ["obj_3", "obj_7"]
+      "avg_confidence": 0.92,
+      "co_occurred_with": ["obj_3", "obj_7"]
     }
   ]
 }
@@ -122,13 +123,36 @@ List raw scenes (3-second windows) with frame-level detections.
   "session_id": "session_a1b2c3d4e5f6",
   "scenes": [
     {
-      "scene_id": "scene_0",
-      "timestamp": 1721308800.123,
-      "frame_count": 15,
-      "detections": [
-        { "class_name": "cup", "bbox_px": [300,220,340,260], "confidence": 0.92 },
-        { "class_name": "bottle", "bbox_px": [400,180,450,250], "confidence": 0.87 }
-      ]
+      "index": 0,
+      "start": 1721308800.123,
+      "end": 1721308845.789,
+      "sightings": {
+        "cup": {
+          "first_seen": 1721308800.123,
+          "last_seen": 1721308845.789,
+          "frame_count": 15,
+          "first_bbox": [300, 220, 340, 260],
+          "last_bbox": [305, 225, 345, 265],
+          "first_centroid": [320, 240],
+          "last_centroid": [325, 245],
+          "avg_confidence": 0.92,
+          "frame_w": 640,
+          "frame_h": 480
+        },
+        "bottle": {
+          "first_seen": 1721308810.0,
+          "last_seen": 1721308840.0,
+          "frame_count": 8,
+          "first_bbox": [400, 180, 450, 250],
+          "last_bbox": [405, 185, 455, 255],
+          "first_centroid": [425, 215],
+          "last_centroid": [430, 220],
+          "avg_confidence": 0.87,
+          "frame_w": 640,
+          "frame_h": 480
+        }
+      },
+      "persist_counter": 3
     }
   ]
 }
@@ -184,22 +208,23 @@ Diff two explicit sessions.
   "location_name": "kitchen",
   "changes": [
     {
-      "object_id": "obj_3",
-      "class_name": "cup",
+      "object": "cup",
       "status": "moved",
+      "category": "personal",
       "displacement_m": 0.42,
-      "reference_bbox": [300,220,340,260],
-      "current_bbox": [350,240,390,280],
-      "note": "cup moved 0.42 m (shared anchor: fridge)"
+      "direction": "right",
+      "co_occurrence_before": ["fridge"],
+      "co_occurrence_after": ["fridge"],
+      "note": "The cup moved about 0.42 meters to your right."
     },
     {
-      "object_id": "obj_7",
-      "class_name": "keys",
+      "object": "keys",
       "status": "new",
+      "category": "personal",
       "displacement_m": null,
-      "reference_bbox": null,
-      "current_bbox": [120,400,160,440],
-      "note": "keys appeared in current session"
+      "co_occurrence_before": [],
+      "co_occurrence_after": ["wallet"],
+      "note": "The keys appeared in the current session."
     }
   ],
   "summary": {
@@ -344,11 +369,14 @@ Search CLIP keyframe index by text description (e.g., "red mug on table").
   "query": "red mug on table",
   "results": [
     {
-      "session_id": "session_a1b2c3d4e5f6",
-      "scene_id": "scene_3",
-      "timestamp": 1721308830.0,
-      "distance": 0.23,
-      "frame_path": "data/sessions/session_a1b2c3d4e5f6/keyframes/scene_3.jpg"
+      "id": "kf_session_a1b2c3d4e5f6_1721308830000",
+      "metadata": {
+        "session_id": "session_a1b2c3d4e5f6",
+        "timestamp": 1721308830.0,
+        "location_name": "kitchen",
+        "objects": ["cup", "bottle"]
+      },
+      "distance": 0.23
     }
   ],
   "total": 1
@@ -396,12 +424,12 @@ WebSocket. Subscribes to live camera + detection loop for a session.
 {
   "type": "frame",
   "timestamp": 1721308850.123,
-  "frame_shape": [480, 640, 3],
+  "frame_shape": [480, 640],
   "detections": [
-    { "class_name": "cup", "bbox_px": [300,220,340,260], "confidence": 0.91 },
-    { "class_name": "bottle", "bbox_px": [400,180,450,250], "confidence": 0.85 }
+    { "class": "cup", "bbox": [300,220,340,260], "confidence": 0.91 },
+    { "class": "bottle", "bbox": [400,180,450,250], "confidence": 0.85 }
   ],
-  "roll": 0.0,
+  "roll": 0,
   "frame_b64": "/9j/4AAQSkZJRgABAQ..."  // only if include_frame=true
 }
 ```
@@ -433,11 +461,11 @@ One-shot REST snapshot of latest frame + detections.
 {
   "available": true,
   "timestamp": 1721308850.123,
-  "frame_shape": [480, 640, 3],
+  "frame_shape": [480, 640],
   "detections": [
-    { "class_name": "cup", "bbox_px": [300,220,340,260], "confidence": 0.91 }
+    { "class": "cup", "bbox": [300,220,340,260], "confidence": 0.91 }
   ],
-  "roll": 0.0,
+  "roll": 0,
   "frame_b64": "/9j/4AAQSkZJRgABAQ..."
 }
 ```
