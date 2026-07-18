@@ -94,7 +94,6 @@ List deduplicated objects for a session (one entry per physical object, with co-
   "objects": [
     {
       "class": "cup",
-      "category": "personal",
       "total_frames": 12,
       "first_seen": 1721308800.123,
       "last_seen": 1721308850.789,
@@ -374,7 +373,7 @@ Search CLIP keyframe index by text description (e.g., "red mug on table").
         "session_id": "session_a1b2c3d4e5f6",
         "timestamp": 1721308830.0,
         "location_name": "kitchen",
-        "objects": ["cup", "bottle"]
+        "objects": "cup,bottle"
       },
       "distance": 0.23
     }
