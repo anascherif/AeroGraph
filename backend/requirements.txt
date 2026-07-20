@@ -40,3 +40,12 @@ pyttsx3==2.91
 # HTTP & utilities
 httpx==0.28.1
 pillow==11.0.0
+
+# Safety notifiers (all optional — missing package = dry-run mode)
+# Telegram bot API for the primary text + photo + voice alert channel.
+# Create a free bot via @BotFather in ~5 minutes.
+python-telegram-bot==21.7
+# Twilio voice calls (Tier 3 escalation; env-guarded, dry-run by default).
+# Not strictly required for the default demo flow — install only if you
+# plan to use real outbound voice calls.
+# twilio==9.3.0

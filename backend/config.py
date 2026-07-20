@@ -50,6 +50,7 @@ CAMERA_SOURCE_PARSED: int | str = _resolve_camera_source(CAMERA_SOURCE)
 DATA_DIR: Path = PROJECT_ROOT / os.getenv("DATA_DIR", "data")
 MODELS_DIR: Path = PROJECT_ROOT / os.getenv("MODELS_DIR", "backend/models")
 CHROMA_PATH: Path = PROJECT_ROOT / os.getenv("CHROMA_PATH", "data/chroma")
+SAFETY_DIR: Path = DATA_DIR / "safety"
 
 
 # --- Detection pipeline constants ---
@@ -144,6 +145,36 @@ STREAM_FPS: int = 5
 STREAM_JPEG_QUALITY: int = 70
 
 
+# --- Safety monitor (body-cam distress detection) ---
+#
+# The camera is assumed to be body-worn (chest/head/neck), so the *wearer* is
+# never in frame. We detect the camera-side signature of a fall/distress event
+# using three orthogonal cheap signals (motion energy, downward tilt from
+# optical flow, and brightness drop), fused into a debounced candidate.
+
+SAFETY_MOTION_HISTORY_S: float = 60.0       # rolling window length for motion energy
+SAFETY_WAS_MOVING_THRESHOLD: float = 5.0   # min motion magnitude above which we consider the user "was moving"
+SAFETY_CONFIRMATION_S: float = 30.0         # voice confirmation window before escalating
+SAFETY_CANDIDATE_WINDOW_S: float = 8.0      # how long signals must stick before candidate fires
+SAFETY_BRIGHTNESS_DROP_PCT: float = 0.6     # EMA brightness must fall below 40% of baseline
+SAFETY_TILT_VERT_FLOW: float = 4.0          # px of vertical optical-flow per frame to call it a downward tilt
+SAFETY_COOLDOWN_S: float = 60.0             # cooldown after any alert cycle before re-arming
+SAFETY_MIN_SIGNALS: int = 2                 # 2 of 3 must flag simultaneously
+SAFETY_STT_LISTEN_PHRASES: tuple[str, ...] = (
+    "i'm okay", "i am okay", "im okay", "okay", "ok", "yes", "fine",
+    "cancel", "stop", "i'm fine", "i am fine",
+)
+
+# --- Notifiers (all env-guarded; absent env = disabled / dry-run) ---
+
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")  # optional group fallback
+WHATSAPP_BRIDGE_URL: str = os.getenv("WHATSAPP_BRIDGE_URL", "http://127.0.0.1:7878")
+TWILIO_SID: str = os.getenv("TWILIO_SID", "")
+TWILIO_TOKEN: str = os.getenv("TWILIO_TOKEN", "")
+TWILIO_FROM: str = os.getenv("TWILIO_FROM", "")
+
+
 # --- Spatial graph / session settings ---
 
 # Where per-session manifests are persisted (one JSON file per session).
@@ -193,8 +224,8 @@ def object_category(class_name: str) -> str:
 
 
 def ensure_dirs() -> None:
-    """Create the data / models / sessions directories if missing."""
-    for p in (DATA_DIR, MODELS_DIR, CHROMA_PATH, SESSIONS_DIR):
+    """Create the data / models / sessions / safety directories if missing."""
+    for p in (DATA_DIR, MODELS_DIR, CHROMA_PATH, SESSIONS_DIR, SAFETY_DIR):
         p.mkdir(parents=True, exist_ok=True)
 
 
@@ -207,6 +238,11 @@ class RuntimeState:
     clip_loaded: bool = False
     spatial_graph_ready: bool = False
     camera_streaming: bool = False
+    safety_monitor_ready: bool = False
+    notifier_bus_ready: bool = False
+    telegram_enabled: bool = False
+    whatsapp_enabled: bool = False
+    twilio_enabled: bool = False
 
 
 runtime = RuntimeState()

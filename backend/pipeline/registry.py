@@ -21,6 +21,9 @@ detector: Optional[Detector] = None
 spatial_graph: Optional[SpatialGraph] = None
 keyframe_index: Any = None  # KeyframeIndex — lazy, avoids heavy CLIP import at startup
 camera_stream: Any = None  # CameraStream — lazy, avoids heavy cv2 import at startup
+safety_store: Any = None   # SafetyStore (JSON-backed)
+safety_monitor: Any = None  # SafetyMonitor (init on FastAPI startup)
+notifier_bus: Any = None   # NotifierBus (init on FastAPI startup)
 
 
 def get_detector() -> Detector:

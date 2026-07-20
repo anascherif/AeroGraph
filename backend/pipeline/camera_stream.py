@@ -173,6 +173,14 @@ class CameraStream:
                 # --- Capture keyframe (throttled) ---
                 self._maybe_capture_keyframe(frame, sid, detections, ts)
 
+                # --- Feed the safety monitor (cheap; inline) ---
+                sm = registry.safety_monitor
+                if sm is not None:
+                    try:
+                        sm.observe(frame, detections, ts)
+                    except Exception:
+                        logger.exception("Safety monitor observe() error")
+
                 # --- Store latest for screenshots / snapshot endpoint ---
                 self._roll_counter += 1
                 roll = self._roll_counter
