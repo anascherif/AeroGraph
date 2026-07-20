@@ -19,7 +19,12 @@ Service health check. Returns status of each pipeline component.
   "chroma_ready": true,
   "clip_loaded": false,
   "spatial_graph_ready": true,
-  "camera_streaming": false
+  "camera_streaming": false,
+  "safety_monitor_ready": true,
+  "notifier_bus_ready": true,
+  "telegram_enabled": false,
+  "whatsapp_enabled": true,
+  "twilio_enabled": false
 }
 ```
 
@@ -32,6 +37,11 @@ Service health check. Returns status of each pipeline component.
 | `clip_loaded` | bool | CLIP RN50 model loaded (lazy — flips to `true` on first query) |
 | `spatial_graph_ready` | bool | SpatialGraph initialised (JSON manifest loaded) |
 | `camera_streaming` | bool | At least one WebSocket subscriber connected to stream |
+| `safety_monitor_ready` | bool | SafetyMonitor initialised and running in `monitoring` state |
+| `notifier_bus_ready` | bool | NotifierBus (Telegram + WhatsApp + Twilio) constructed on startup |
+| `telegram_enabled` | bool | `TELEGRAM_BOT_TOKEN` env var is set |
+| `whatsapp_enabled` | bool | `WHATSAPP_BRIDGE_URL` points at a reachable Baileys bridge |
+| `twilio_enabled` | bool | `TWILIO_SID`, `TWILIO_TOKEN`, and `TWILIO_FROM` all set |
 
 ---
 
@@ -570,6 +580,311 @@ async def listen():
             data = json.loads(msg)
             if data["type"] == "frame":
                 print(f"Frame {data['timestamp']}: {len(data['detections'])} detections")
+
+asyncio.run(listen())
+```
+
+---
+
+## 11. Safety Monitor
+
+All endpoints under `/v1/safety`.
+
+### Overview
+
+The safety subsystem detects body-cam distress signals (motion silence + downward tilt + brightness drop), prompts the user with TTS ("Are you okay?"), waits 30 seconds for a voice/STT response, and escalates to family contacts (Telegram, WhatsApp, optional Twilio voice call) if no confirmation is received.
+
+**State machine:**
+```
+MONITORING ─(candidate fires)→ CONFIRMING ─(timeout, no "ok")→ ESCALATING ─(notifiers)→ COOLDOWN
+     ↑                                                                  │
+     └─────────────── STT heard "i'm okay" / cancel button ────────────┘
+```
+
+**Detection signals (3-signal fusion, at least 2 must flag):**
+- Motion energy — `cv2.absdiff` between consecutive greyscale frames, rolling 60s window
+- Vertical tilt — Farneback optical flow at 80×80, flags when mean `|vy|` > 4px/frame
+- Brightness drop — EMA of grey-frame mean falls below 40 (out of 255)
+
+**Anti-false-alarm guard:** candidate fires only if the user was physically moving within the last 60 seconds (motion energy > threshold in the trailing window). A user who has been sitting still for 5 minutes does not trigger an alert.
+
+**Contacts** are stored in `data/safety/contacts.json`. **Incidents** are append-only in `data/safety/incidents.json`.
+
+---
+
+### `GET /v1/safety/status`
+
+Current monitor state and live signal values. Safe to poll from a dashboard every 2–5 seconds.
+
+**Response 200:**
+```json
+{
+  "state": "monitoring",
+  "state_since": 1721308800.123,
+  "session_id": "session_a1b2c3",
+  "location_name": "kitchen",
+  "candidate_active": false,
+  "candidate_seconds": 0.0,
+  "confirmation_remaining_s": 0.0,
+  "cooldown_remaining_s": 0.0,
+  "was_moving_recently": true,
+  "recent_motion_magnitude": 8.3,
+  "brightness_ema": 142.5,
+  "current_incident_id": ""
+}
+```
+
+**Fields:**
+| Field | Type | Meaning |
+|-------|------|---------|
+| `state` | string | `"monitoring"` \| `"confirming"` \| `"escalating"` \| `"cooldown"` \| `"disabled"` |
+| `state_since` | float | Unix timestamp when current state began |
+| `session_id` | string | Active capture session (empty if no session running) |
+| `location_name` | string | Location of the active session |
+| `candidate_active` | bool | True if ≥2 signals are flagged and the countdown is running |
+| `candidate_seconds` | float | Seconds elapsed since candidate first fired |
+| `confirmation_remaining_s` | float | Seconds left in the voice confirmation window (0 if not confirming) |
+| `cooldown_remaining_s` | float | Seconds until the monitor re-arms (0 if not in cooldown) |
+| `was_moving_recently` | bool | At least one motion sample above threshold in the last 60s |
+| `recent_motion_magnitude` | float | Peak motion energy in the trailing 60s window |
+| `brightness_ema` | float | Exponential-moving-average of grey-frame brightness (0–255) |
+| `current_incident_id` | string | ID of the incident being processed (empty if idle) |
+
+---
+
+### `WS /v1/safety/events`
+
+WebSocket stream of safety state transitions and alert lifecycle events. Connect to get real-time updates on the dashboard without polling.
+
+**Connection:** `ws://localhost:8000/v1/safety/events`
+
+On connect the server sends an initial snapshot:
+```json
+{"type": "snapshot", "ts": 1721308800.0, "data": {"state": "monitoring", ...}}
+```
+
+**Subsequent events (sent by the server):**
+
+State transition (published whenever `state` changes):
+```json
+{"type": "state", "ts": 1721308900.0, "from": "confirming", "to": "cooldown", "reason": "alert cancelled"}
+```
+
+Candidate detected (≥2 signals flagged, 8s debounce running):
+```json
+{"type": "candidate_started", "ts": 1721308850.0, "flagged_signals": 2}
+```
+
+Candidate reset (signals dropped before debounce elapsed):
+```json
+{"type": "candidate_reset", "ts": 1721308860.0, "reason": "signals no longer sustained"}
+```
+
+Escalation begun:
+```json
+{"type": "escalating", "ts": 1721308900.0, "incident_id": "inc_xxx", "contacts_count": 2, "keyframes_count": 3}
+```
+
+Alert cancelled:
+```json
+{"type": "cancelled", "ts": 1721308900.0, "incident_id": "inc_xxx", "outcome": "cancelled_by_voice", "heard_text": "i'm okay"}
+```
+
+---
+
+### `GET /v1/safety/contacts`
+
+List all emergency contacts.
+
+**Response 200:**
+```json
+{
+  "contacts": [
+    {
+      "id": "c_840302774d74",
+      "name": "Mom",
+      "phone": "+21612345678",
+      "telegram_user_id": "",
+      "telegram_username": "@mom",
+      "channels": ["telegram", "whatsapp"],
+      "notes": "primary contact",
+      "created_at": 1721308800.0
+    }
+  ]
+}
+```
+
+---
+
+### `POST /v1/safety/contacts`
+
+Add a new emergency contact.
+
+**Request:**
+```json
+{
+  "name": "Mom",
+  "phone": "+21612345678",
+  "telegram_user_id": "123456789",
+  "telegram_username": "",
+  "channels": ["telegram", "whatsapp"],
+  "notes": "primary contact"
+}
+```
+
+`channels` is optional. If omitted the contact receives alerts on **all** channels. Valid channel values: `"telegram"`, `"whatsapp"`, `"call"`.
+
+**Response 201:** Returns the created contact object (same shape as above, with `id` and `created_at` populated).
+
+**Response 503:** Safety store unavailable.
+
+---
+
+### `DELETE /v1/safety/contacts/{contact_id}`
+
+Remove a contact.
+
+**Response 200:**
+```json
+{"deleted": true, "contact_id": "c_840302774d74"}
+```
+
+**Response 404:** Contact not found.
+
+---
+
+### `POST /v1/safety/test_alert`
+
+Trigger the full alert cycle end-to-end, bypassing detection, for a judge demo or smoke test.
+
+- Enters `confirming` state immediately (skips the 8s candidate debounce)
+- Plays "Are you okay?" via TTS
+- Waits 30s for a `voice_heard` call with "i'm okay"
+- If no confirmation → escalates → fan-out to contacts → `cooldown`
+
+**Response 200:**
+```json
+{"triggered": true, "state": "confirming"}
+```
+
+**Response 409:** Monitor is not in `monitoring` state (e.g. already confirming or in cooldown). Use `GET /v1/safety/status` to check.
+
+**Response 503:** Safety monitor not available.
+
+---
+
+### `POST /v1/safety/cancel`
+
+Manually cancel the in-flight confirmation from the dashboard "I'm okay" button. Only works during `confirming` state.
+
+**Response 200:**
+```json
+{"cancelled": true, "state": "cooldown"}
+```
+
+**Response 200 (no-op):** Returns `{"cancelled": false, "state": "monitoring"}` if not confirming.
+
+---
+
+### `POST /v1/safety/voice_heard`
+
+Inject a text transcript into the confirmation listener. Used by:
+- The dashboard "I'm okay" button (sends `"i'm okay"`)
+- An external STT loop that pipes recognized speech
+
+**Request:**
+```json
+{"text": "i'm okay"}
+```
+
+Recognised phrases (case-insensitive):
+`"i'm okay"`, `"i am okay"`, `"im okay"`, `"okay"`, `"ok"`, `"yes"`, `"fine"`, `"cancel"`, `"stop"`, `"i'm fine"`, `"i am fine"`
+
+**Response 200:**
+```json
+{"queued": true, "state": "confirming"}
+```
+
+**Response 503:** Safety monitor not available.
+
+---
+
+### `GET /v1/safety/incidents?limit=50`
+
+Incident log (append-mostly). Each escalation or cancellation appends one record.
+
+**Response 200:**
+```json
+{
+  "incidents": [
+    {
+      "incident_id": "inc_1721308900",
+      "started_at": 1721308800.0,
+      "trigger": "manual test_alert (detection skipped)",
+      "location_name": "kitchen",
+      "session_id": "session_a1b2c3",
+      "outcome": "cancelled_by_voice",
+      "resolved_at": 1721308830.0,
+      "note": "heard: \"i'm okay\""
+    }
+  ],
+  "total_returned": 1
+}
+```
+
+`outcome` values: `"in_progress"` | `"cancelled_by_voice"` | `"cancelled_by_ui"` | `"escalated_and_sent"` | `"false_alarm"`
+
+**Query params:** `limit` (int, 1–500, default 50)
+
+---
+
+### Alert Fan-out
+
+When escalation fires, the server sends to all three notifiers in parallel via `asyncio.gather(return_exceptions=True)`:
+
+| Channel | Requirement | Content |
+|---------|-------------|---------|
+| **Telegram** | `TELEGRAM_BOT_TOKEN` env var | Text alert + up to 3 keyframe photos (sendMediaGroup) + TTS voice note (sendVoice) |
+| **WhatsApp** | Baileys bridge at `WHATSAPP_BRIDGE_URL` (default `http://127.0.0.1:7878`) | Text + up to 3 base64 JPEG images |
+| **Twilio** | `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM` all set | Outbound voice call reading the alert via TwiML `<Say>`. **Dry-run by default** (no real call unless env vars are present). **Note: Tunisia (+216) numbers are not supported for outbound Twilio voice calls.** |
+
+If any notifier fails (network error, missing credentials, crashed), the others continue. No alert is silently dropped — the `GET /v1/safety/incidents` log records the outcome for every incident.
+
+---
+
+### WebSocket Event Shapes
+
+Connect with JavaScript:
+
+```javascript
+const ws = new WebSocket("ws://localhost:8000/v1/safety/events");
+ws.onmessage = (evt) => {
+  const msg = JSON.parse(evt.data);
+  if (msg.type === "snapshot") {
+    renderSafetyStatus(msg.data);     // full status object
+  } else if (msg.type === "state") {
+    showStateTransition(msg.from, msg.to, msg.reason);
+  } else if (msg.type === "escalating") {
+    showEscalationAlert(msg.incident_id, msg.contacts_count);
+  } else if (msg.type === "cancelled") {
+    showCancelledBanner(msg.outcome, msg.heard_text);
+  }
+};
+```
+
+Connect with Python:
+
+```python
+import asyncio, websockets, json
+
+async def listen():
+    uri = "ws://localhost:8000/v1/safety/events"
+    async with websockets.connect(uri) as ws:
+        snapshot = json.loads(await ws.recv())
+        print("snapshot:", snapshot["data"]["state"])
+        async for msg in ws:
+            data = json.loads(msg)
+            print(f"event: {data['type']}", data)
 
 asyncio.run(listen())
 ```
