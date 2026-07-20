@@ -27,6 +27,7 @@ build/
 # Data storage
 data/chroma/
 data/sessions/
+data/safety/
 data/recordings/
 data/*.db
 data/*.sqlite
