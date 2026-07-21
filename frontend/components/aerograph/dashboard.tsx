@@ -62,7 +62,7 @@ export function Dashboard() {
           </div>
 
           <Tabs defaultValue="live">
-            <TabsList className="grid w-full grid-cols-5 sm:w-auto sm:inline-grid">
+            <TabsList className="grid w-full grid-cols-6 sm:w-auto sm:inline-grid">
               {TABS.map(({ value, label, icon: Icon }) => (
                 <TabsTrigger key={value} value={value} className="gap-1.5">
                   <Icon className="size-4" aria-hidden />

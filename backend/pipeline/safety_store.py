@@ -66,7 +66,21 @@ class SafetyStore:
             with path.open("r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            logger.exception("SafetyStore: failed to load %s — using default", path)
+            # CRITICAL #10: backup the corrupt file before falling back so we
+            # never silently lose data and the next additive flush doesn't
+            # overwrite the only copy with an empty list.
+            backup = path.with_suffix(path.suffix + f".corrupt.{int(time.time())}")
+            try:
+                path.replace(backup)
+                logger.warning(
+                    "SafetyStore: moved corrupt %s to %s — using default",
+                    path, backup,
+                )
+            except Exception:
+                logger.exception(
+                    "SafetyStore: failed to back up corrupt %s — using default "
+                    "(the file remains in place)", path,
+                )
             return default
 
     def _flush(self) -> None:

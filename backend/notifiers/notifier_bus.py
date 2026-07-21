@@ -66,7 +66,19 @@ class NotifierBus:
                         success=False, detail=f"notifier returned {type(res).__name__}",
                     )]
                 return res
-            except Exception as e:
+            except asyncio.CancelledError:
+                # Never swallow cancellation: propagate so the caller can shut
+                # down cleanly. This branch fires only if our task itself was
+                # cancelled (e.g. on shutdown) — NOT if a downstream notifier
+                # cancelled internally (that becomes an Exception below).
+                raise
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException as e:
+                # Catches Exception + any non-Exception BaseException
+                # subclasses that aren't cancellation/exit signals
+                # (e.g. greenlet errors from nested libraries). The hard
+                # contract is: a notifier crash never aborts the others.
                 logger.exception("NotifierBus: %s crashed", notifier.name)
                 return [
                     SendResult(
@@ -77,11 +89,34 @@ class NotifierBus:
                     for c in contacts
                 ]
 
+        # return_exceptions=True is defence-in-depth: even though _safe_call
+        # catches BaseException, a future refactor could regress that catch,
+        # and the documented contract is "a failure never aborts the others".
+        # An Exception escaping _safe_call will then be returned to us in
+        # results_lists rather than causing asyncio.gather to cancel sibling
+        # tasks (which would directly break the contract on Py3.8+ where
+        # gather(return_exceptions=False) cancels the rest on first raise).
         tasks = [_safe_call(n) for n in self._notifiers]
-        results_lists = await asyncio.gather(*tasks, return_exceptions=False)
+        results_lists = await asyncio.gather(*tasks, return_exceptions=True)
         out: dict[str, list[SendResult]] = {}
         for notifier, results in zip(self._notifiers, results_lists):
-            out[notifier.name] = results
+            if isinstance(results, BaseException) and not isinstance(results, list):
+                # _safe_call's catch was bypassed — synthesise a per-contact
+                # failure list so the dashboard still gets a result shape.
+                logger.error(
+                    "NotifierBus: %s produced an uncaught %s: %s",
+                    notifier.name, type(results).__name__, results,
+                )
+                out[notifier.name] = [
+                    SendResult(
+                        notifier=notifier.name, contact_id=c.id,
+                        success=False,
+                        detail=f"uncaught {type(results).__name__}: {results}",
+                    )
+                    for c in contacts
+                ]
+            else:
+                out[notifier.name] = results
         # Log summary
         succeeded = sum(
             1 for results in out.values()

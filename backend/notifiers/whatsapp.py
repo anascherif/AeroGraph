@@ -49,21 +49,21 @@ class WhatsAppNotifier:
         payload: AlertPayload,
     ) -> list[SendResult]:
         targets = filter_contacts_for_channel(contacts, "whatsapp")
-        results: list[SendResult] = []
-        for c in targets:
-            if not c.phone:
-                results.append(SendResult(
-                    notifier=self.name, contact_id=c.id,
-                    success=False, detail="contact has no phone number",
-                ))
-                continue
-            res = await self._send_one(c, payload)
-            results.append(res)
-        return results
+        # Parallelise per-contact sends — escalations to multiple contacts
+        # otherwise block sequentially on the bridge timeout (10s each),
+        # which can push alert delivery past 60s for N=3 contacts.
+        return await asyncio.gather(
+            *(self._send_one(c, payload) for c in targets)
+        )
 
     async def _send_one(
         self, contact: Contact, payload: AlertPayload,
     ) -> SendResult:
+        if not contact.phone:
+            return SendResult(
+                notifier=self.name, contact_id=contact.id,
+                success=False, detail="contact has no phone number",
+            )
         body = {
             "phone": contact.phone,
             "text": payload.summary_text(),
@@ -73,13 +73,27 @@ class WhatsAppNotifier:
             ],
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # 5s connect + 10s read — matches the docstring claim that an
+            # unreachable bridge fails fast rather than blocking the alert
+            # for the full 10s.
+            timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=1.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 r = await client.post(
                     f"{WHATSAPP_BRIDGE_URL}/send",
                     json=body,
                 )
-            ok = r.status_code == 200 and r.json().get("ok", False)
-            detail = r.json().get("detail", f"status={r.status_code}") if r.status_code == 200 else f"status={r.status_code}"
+            # Parse the body once — calling r.json() twice hits an httpx cache
+            # that is fragile across versions.
+            try:
+                data = r.json()
+            except Exception:
+                data = {}
+            ok = r.status_code == 200 and bool(data.get("ok", False))
+            detail = (
+                data.get("detail", f"status={r.status_code}")
+                if r.status_code == 200
+                else f"status={r.status_code}"
+            )
             return SendResult(
                 notifier=self.name, contact_id=contact.id,
                 success=ok, detail=detail,

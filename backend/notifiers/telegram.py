@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
 import tempfile
 from typing import Any
 
@@ -29,27 +30,53 @@ from backend.notifiers.base import (
 
 logger = logging.getLogger("aerograph.notifier.telegram")
 
-# Lazy import so the rest of the system can boot even if telegram isn't
-# installed/configured.
+
+# Lazy bot singleton — initialised on first use with double-checked locking
+# via _bot_lock (asyncio.Lock created at import time, which is safe on Py3.10+
+# because asyncio.Lock() no longer needs a running loop to be constructed).
 _bot: Any = None
-_bot_lock = asyncio.Lock()
+_bot_lock: asyncio.Lock | None = None
 
 
-async def _get_bot():
-    """Lazily initialize the Telegram Bot client. Returns None if no token."""
+def _ensure_lock() -> asyncio.Lock:
+    """Create _bot_lock lazily, so we never bind it to a closed/missing loop.
+
+    asyncio.Lock on Python 3.10+ can be created without a running loop and
+    will adopt the loop it's first used in. We still create it on demand to
+    avoid any chance of binding to a transient event loop at import time.
+    """
+    global _bot_lock
+    if _bot_lock is None:
+        _bot_lock = asyncio.Lock()
+    return _bot_lock
+
+
+async def _get_bot() -> Any:
+    """Lazily initialize the Telegram Bot client. Returns None if no token.
+
+    Two concurrent calls (e.g. escalate fires while a manual /test_alert is
+    in flight on a second asyncio task) could both pass the fast-path check
+    and both import+create the Bot. _bot_lock serialises the slow path;
+    inside the lock we re-check _bot to avoid double-initialisation.
+    """
     global _bot
     if _bot is not None:
         return _bot
     if not TELEGRAM_BOT_TOKEN:
         return None
-    try:
-        # python-telegram-bot >= 20
-        from telegram import Bot
-        _bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    except Exception:
-        logger.exception("TelegramNotifier: failed to init Bot from token")
-        return None
-    return _bot
+    lock = _ensure_lock()
+    async with lock:
+        # Double-check inside the lock — another task might have initialised
+        # while we were waiting.
+        if _bot is not None:
+            return _bot
+        try:
+            from telegram import Bot
+            _bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        except Exception:
+            logger.exception("TelegramNotifier: failed to init Bot from token")
+            return None
+        return _bot
 
 
 class TelegramNotifier:
@@ -73,12 +100,13 @@ class TelegramNotifier:
                 for c in filter_contacts_for_channel(contacts, "telegram")
             ]
 
-        results: list[SendResult] = []
         targets = filter_contacts_for_channel(contacts, "telegram")
-        for c in targets:
-            res = await self._send_one(bot, c, payload)
-            results.append(res)
-        return results
+        # Parallelise per-contact sends — Telegram API can happily handle
+        # concurrent requests and the escalator climbs out of the 60s+
+        # blocked window when sending to multiple family members sequentially.
+        return await asyncio.gather(
+            *(self._send_one(bot, c, payload) for c in targets)
+        )
 
     async def _send_one(
         self, bot: Any, contact: Contact, payload: AlertPayload,
@@ -92,6 +120,9 @@ class TelegramNotifier:
                 detail="contact has neither telegram_user_id nor telegram_username",
             )
 
+        # Pre-render the voice BEFORE the await chain so the cleanup scope
+        # is unambiguous (see comment in finally block below).
+        voice_path: str | None = None
         try:
             # 1. Text alert.
             text_msg = payload.summary_text()
@@ -100,38 +131,36 @@ class TelegramNotifier:
             # 2. Keyframe photo carousel (up to 3).
             kfs = payload.keyframes_jpeg[:3]
             if kfs:
-                # python-telegram-bot InputMediaPhoto accepts BytesIO
-                media = []
-                for i, jpeg in enumerate(kfs):
-                    buf = io.BytesIO(jpeg)
-                    buf.name = f"frame_{i}.jpg"
-                    media.append(buf)
-                # sendPhoto can only send one; use send_media_group for many.
-                # python-telegram-bot media param accepts BufferedIOBase.
-                from telegram import InputMediaPhoto
-                group = [InputMediaPhoto(media=m, caption="AeroGraph: recent frames") for m in media]
+                # python-telegram-bot InputMediaPhoto accepts BytesIO.
+                media = [
+                    _bytes_io(jpeg, f"frame_{i}.jpg")
+                    for i, jpeg in enumerate(kfs)
+                ]
                 try:
+                    from telegram import InputMediaPhoto
+                    group = [
+                        InputMediaPhoto(media=m, caption="AeroGraph: recent frames")
+                        for m in media
+                    ]
                     await bot.send_media_group(chat_id=chat_id, media=group)
                 except Exception as e:
-                    # Some bots / older servers — fall back to first photo only.
-                    logger.warning("Telegram: send_media_group failed (%s) — sending first only", e)
-                    if media:
-                        await bot.send_photo(chat_id=chat_id, photo=media[0])
+                    # Fallback: send only the first photo. python-telegram-bot
+                    # consumed the BytesIO buffers above during the failed
+                    # send_media_group call (cursor advanced past EOF), so
+                    # we MUST rebuild a fresh BytesIO from the raw bytes —
+                    # reusing media[0] would send a 0-byte image.
+                    logger.warning(
+                        "Telegram: send_media_group failed (%s) — sending first only",
+                        e,
+                    )
+                    await bot.send_photo(chat_id=chat_id, photo=_bytes_io(kfs[0]))
 
-            # 3. Synthesized voice note. We render via pyttsx3 (already used
-            # elsewhere) to a temp file, then upload it.
-            try:
-                voice_path = await asyncio.to_thread(self._render_voice, text_msg)
-                if voice_path:
-                    with open(voice_path, "rb") as f:
-                        await bot.send_voice(chat_id=chat_id, voice=f)
-            finally:
-                if voice_path:
-                    try:
-                        import os as _os
-                        _os.remove(voice_path)
-                    except Exception:
-                        pass
+            # 3. Synthesized voice note. Render via pyttsx3 to a temp file,
+            # then upload it. Render happens off the event loop via to_thread.
+            voice_path = await asyncio.to_thread(self._render_voice, text_msg)
+            if voice_path:
+                with open(voice_path, "rb") as f:
+                    await bot.send_voice(chat_id=chat_id, voice=f)
 
             return SendResult(
                 notifier=self.name,
@@ -147,6 +176,15 @@ class TelegramNotifier:
                 success=False,
                 detail=f"exception: {type(e).__name__}: {e}",
             )
+        finally:
+            # voice_path is initialised to None at the top of the function,
+            # so even if _render_voice raises before the assignment the
+            # finally block has a defined reference rather than NameError.
+            if voice_path is not None:
+                try:
+                    os.remove(voice_path)
+                except Exception:
+                    pass
 
     @staticmethod
     def _resolve_chat_id(contact: Contact) -> str | None:
@@ -167,7 +205,6 @@ class TelegramNotifier:
             logger.exception("TelegramNotifier: tts_engine import failed")
             return None
         try:
-            import tempfile, os
             fd, path = tempfile.mkstemp(suffix=".wav")
             os.close(fd)
             save_to_file(text, path)
@@ -175,3 +212,16 @@ class TelegramNotifier:
         except Exception:
             logger.exception("TelegramNotifier: save_to_file failed")
             return None
+
+
+def _bytes_io(data: bytes, name: str | None = None) -> io.BytesIO:
+    """Wrap raw bytes in a fresh BytesIO stream.
+
+    Centralising this so we never fall into the bug where a BytesIO is passed
+    to two different API calls — the cursor is advanced by the first reader
+    and the second receives an EOF stream.
+    """
+    buf = io.BytesIO(data)
+    if name:
+        buf.name = name
+    return buf

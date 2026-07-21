@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2, Plus, ShieldAlert, Trash2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,10 +71,12 @@ function ContactsTab() {
     }
   }
 
-  // Load on mount
-  if (contacts.length === 0 && !loading) {
+  // Load on mount (MINOR #24 — useEffect, not render-time call, which
+  // would re-fire on every render and risk an infinite loop on network failure)
+  useEffect(() => {
     load()
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleAdd = async () => {
     if (!name.trim()) return
@@ -395,9 +397,11 @@ function IncidentsTab() {
     }
   }
 
-  if (incidents.length === 0 && !loading) {
+  // Load on mount (MINOR #24 — useEffect instead of render-time call)
+  useEffect(() => {
     load()
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Card>

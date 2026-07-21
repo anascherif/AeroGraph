@@ -32,8 +32,9 @@ class AlertPayload:
         import time as _t
         ts = _t.strftime("%H:%M", _t.localtime(self.started_at))
         loc = self.location_name or "unknown location"
+        user = self.user_name or "the user"
         return (
-            f"AeroGraph alert: {self.user_name} may need help. "
+            f"AeroGraph alert: {user} may need help. "
             f"Last seen at {loc} around {ts}. "
             f"No response to voice confirmation. Please check on them. "
             f"(incident {self.incident_id})"
@@ -86,10 +87,22 @@ def filter_contacts_for_channel(
     OR (when no channels selected for a contact) include them — we treat
     opt-in as the safe default to ensure contacts don't miss alerts by
     forgetting to configure channels.
+
+    EXCEPTION: the ``"call"`` channel (Twilio outbound voice) does NOT
+    participate in the empty-channels shorthand. A paid phone call to a
+    landline or non-consenting number is a real-world consent violation
+    (TCPA in the US, similar rules elsewhere), so a contact must explicitly
+    list ``"call"`` in their channels to receive a phone call. This makes
+    the safe-by-default behaviour narrower but more correct.
     """
     out = []
     for c in contacts:
         if not c.channels:
+            # Empty channels = safe low-friction default. Telegram and
+            # WhatsApp are reversible / no-cost. Twilio outbound calls are
+            # excluded by this default — see the docstring above.
+            if channel == "call":
+                continue
             out.append(c)
             continue
         if channel in c.channels:

@@ -316,7 +316,12 @@ def test_cancel_external_only_when_confirming() -> None:
 # 4. Notifier contracts: dict->Contact + filter_contacts_for_channel
 # ===========================================================================
 def test_filter_contacts_for_channel_empty_list_includes_all() -> None:
-    """Contacts with no channel preference should get every channel."""
+    """Contacts with no channel preference get telegram+whatsapp (safe,
+    reversible, no-cost) — but NOT "call" (TCPA/consent risk, MINOR #27).
+
+    A contact must explicit list "call" in their channels to receive a
+    Twilio outbound phone call.
+    """
     contacts = [
         Contact(id="c1", name="A", channels=[]),
         Contact(id="c2", name="B", channels=["telegram"]),
@@ -326,10 +331,12 @@ def test_filter_contacts_for_channel_empty_list_includes_all() -> None:
     whatsapp = filter_contacts_for_channel(contacts, "whatsapp")
     call = filter_contacts_for_channel(contacts, "call")
 
-    # c1 has no channels → included in every channel bucket
+    # c1 has no channels -> included in telegram + whatsapp (safe defaults)
+    # but NOT in call (TCPA consent)
     assert {c.id for c in tg} == {"c1", "c2"}
     assert {c.id for c in whatsapp} == {"c1", "c3"}
-    assert {c.id for c in call} == {"c1", "c3"}
+    # Only c3 explicitly opted into "call" — c1 is excluded
+    assert {c.id for c in call} == {"c3"}
 
     print("test_filter_contacts_for_channel_empty_list_includes_all PASSED")
 
@@ -427,6 +434,176 @@ def test_alertpayload_summary_text_has_required_facts() -> None:
 
 
 # ===========================================================================
+# 5. Audit-fix regression tests (BLOCKERs #3-6, CRITICALs #10/#15, MAJORs #18/#19)
+# ===========================================================================
+def test_invalid_state_transition_is_rejected() -> None:
+    """BLOCKER #6: _transition() must reject illegal source->target combos
+    instead of silently flipping state and wedging the state machine.
+    e.g. ESCALATING -> MONITORING is illegal (must pass through COOLDOWN)."""
+    from backend.pipeline.safety_monitor import SafetyState
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SafetyStore(safety_dir=Path(tmp))
+        sm = _make_monitor(store)
+
+        sm._state = SafetyState.ESCALATING
+        sm._transition(SafetyState.MONITORING, time.time(), reason="illegal")
+        assert sm._state is SafetyState.ESCALATING, (
+            "Invalid ESCALATING -> MONITORING transition must be rejected"
+        )
+
+        sm._state = SafetyState.MONITORING
+        sm._transition(SafetyState.COOLDOWN, time.time(), reason="illegal")
+        assert sm._state is SafetyState.MONITORING, (
+            "Invalid MONITORING -> COOLDOWN transition must be rejected"
+        )
+
+        # Valid: MONITORING -> CONFIRMING should succeed
+        sm._transition(SafetyState.CONFIRMING, time.time(), reason="valid")
+        assert sm._state is SafetyState.CONFIRMING
+
+    print("test_invalid_state_transition_is_rejected PASSED")
+
+
+def test_incident_id_is_uuid4_not_millisecond_timestamp() -> None:
+    """CRITICAL #15: incident IDs must use uuid4 to avoid collisions when
+    two candidates fire within the same millisecond. Format: inc_<12 hex>."""
+    import re as _re
+    pattern = _re.compile(r"^inc_[0-9a-f]{12}$")
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SafetyStore(safety_dir=Path(tmp))
+        sm = _make_monitor(store)
+
+        assert sm.trigger_test_alert() is True
+        inc_id = sm._current_incident_id
+        assert inc_id is not None
+        assert pattern.match(inc_id) is not None, (
+            f"incident id {inc_id!r} should match inc_<12 hex chars> (uuid4)"
+        )
+
+    print("test_incident_id_is_uuid4_not_millisecond_timestamp PASSED")
+
+
+def test_heard_queue_is_bounded() -> None:
+    """MAJOR #18: _heard_queue must be bounded (maxlen=32) so a malicious
+    or runaway caller cannot exhaust memory via push_heard_text."""
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SafetyStore(safety_dir=Path(tmp))
+        sm = _make_monitor(store)
+
+        # Push way more than the bound
+        for i in range(1000):
+            sm.push_heard_text(f"noise {i}")
+
+        # The deque itself must report a bounded length
+        assert len(sm._heard_queue) <= 32, (
+            f"_heard_queue should be bounded to 32, got {len(sm._heard_queue)}"
+        )
+        # The maxlen attribute must be set
+        assert sm._heard_queue.maxlen == 32
+
+    print("test_heard_queue_is_bounded PASSED")
+
+
+def test_stt_phrase_match_uses_word_boundaries() -> None:
+    """MAJOR #19: phrase match must use word boundaries so 'ok' doesn't
+    match 'Oklahoma' and 'yes' doesn't match 'yesterday'."""
+    from backend.pipeline.safety_monitor import _STT_PATTERN
+
+    # Positive cases — should match
+    assert _STT_PATTERN.search("i'm okay") is not None
+    assert _STT_PATTERN.search("yes i am fine") is not None
+    assert _STT_PATTERN.search("ok") is not None
+    assert _STT_PATTERN.search("I am okay thanks") is not None
+    assert _STT_PATTERN.search("please stop") is not None  # "stop"
+    assert _STT_PATTERN.search("cancel that") is not None  # "cancel"
+
+    # Negative cases — substring match would have matched, but word
+    # boundaries should reject them
+    assert _STT_PATTERN.search("Oklahoma is nice") is None, (
+        "'ok' should NOT match 'Oklahoma' (word boundary)"
+    )
+    assert _STT_PATTERN.search("yesterday was fun") is None, (
+        "'yes' should NOT match 'yesterday' (word boundary)"
+    )
+    assert _STT_PATTERN.search("spooky movie") is None, (
+        "'ok' should NOT match 'spooky' (word boundary)"
+    )
+    assert _STT_PATTERN.search("stopping now") is None, (
+        "'stop' should NOT match 'stopping' (word boundary)"
+    )
+
+    print("test_stt_phrase_match_uses_word_boundaries PASSED")
+
+
+def test_corrupt_contacts_file_is_backed_up_not_overwritten() -> None:
+    """CRITICAL #10: when contacts.json is corrupt, the store must back up
+    the bad file (so we keep the data) before returning the default —
+    otherwise the next add_contact() flush would overwrite the only copy
+    with an empty list, silently wiping all contacts."""
+    with tempfile.TemporaryDirectory() as tmp:
+        contacts_path = Path(tmp) / "contacts.json"
+        # Write a corrupt contacts file (invalid JSON)
+        contacts_path.write_text("{ broken json", encoding="utf-8")
+
+        store = SafetyStore(safety_dir=Path(tmp))
+        # Load fell back to default (empty list)
+        assert store.list_contacts() == []
+
+        # Add a contact — this triggers a flush. Without the backup fix,
+        # this would have overwritten the corrupt file with an empty list.
+        store.add_contact(name="Mom", phone="+216")
+
+        # The original corrupt file must still exist somewhere (as a .corrupt.* backup)
+        backups = list(Path(tmp).glob("contacts.json.corrupt.*"))
+        assert len(backups) == 1, (
+            f"Expected 1 corrupt backup, found {len(backups)}: {backups}"
+        )
+        # The backup must preserve the original (corrupt) content
+        assert backups[0].read_text(encoding="utf-8") == "{ broken json"
+
+        # And contacts.json now has the new contact (valid JSON)
+        new_content = contacts_path.read_text(encoding="utf-8")
+        assert "Mom" in new_content
+
+    print("test_corrupt_contacts_file_is_backed_up_not_overwritten PASSED")
+
+
+def test_confirmation_worker_recovers_to_cooldown_on_exception() -> None:
+    """BLOCKER #4: if the confirmation worker throws an unhandled exception
+    (e.g. store I/O failure mid-loop), the monitor must NOT wedge forever
+    in CONFIRMING. The try/finally watchdog must transition to COOLDOWN."""
+    with tempfile.TemporaryDirectory() as tmp:
+        store = SafetyStore(safety_dir=Path(tmp))
+        sm = _make_monitor(store)
+
+        # Force the monitor into CONFIRMING with a real worker running
+        assert sm.trigger_test_alert() is True
+        assert sm.state is SafetyState.CONFIRMING
+
+        # Simulate a worker crash by directly invoking the worker body
+        # with a cancel token, then raising. Easier: monkey-patch
+        # _drain_heard_queue to raise mid-loop.
+        original = sm._drain_heard_queue
+
+        def explode():
+            raise RuntimeError("simulated STT backend crash")
+
+        sm._drain_heard_queue = explode  # type: ignore[assignment]
+
+        # Wait for the worker to crash + watchdog to fire
+        time.sleep(2.0)
+
+        # Restore + verify state machine recovered to COOLDOWN (not stuck in CONFIRMING)
+        sm._drain_heard_queue = original  # type: ignore[assignment]
+        assert sm.state is SafetyState.COOLDOWN, (
+            f"Worker exception should have triggered watchdog recovery to "
+            f"COOLDOWN, but state is {sm.state}"
+        )
+
+    print("test_confirmation_worker_recovers_to_cooldown_on_exception PASSED")
+
+
+# ===========================================================================
 # Runner
 # ===========================================================================
 def run_all() -> None:
@@ -443,6 +620,13 @@ def run_all() -> None:
         test_filter_contacts_for_channel_empty_list_includes_all,
         test_dict_to_contact_conversion_matches_monitor_pattern,
         test_alertpayload_summary_text_has_required_facts,
+        # Audit-fix regression tests
+        test_invalid_state_transition_is_rejected,
+        test_incident_id_is_uuid4_not_millisecond_timestamp,
+        test_heard_queue_is_bounded,
+        test_stt_phrase_match_uses_word_boundaries,
+        test_corrupt_contacts_file_is_backed_up_not_overwritten,
+        test_confirmation_worker_recovers_to_cooldown_on_exception,
     ]
     for t in tests:
         t()
