@@ -37,6 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ...(init?.body && !(init.body instanceof FormData)
           ? { "Content-Type": "application/json" }
           : {}),
+        ...getAuthHeaders(),
         ...init?.headers,
       },
     })
@@ -59,6 +60,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return res.json() as Promise<T>
+}
+
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {}
+  const token = window.localStorage.getItem("aerograph:auth-token")
+  if (!token) return {}
+  return { Authorization: `Bearer ${token}` }
 }
 
 // ---- Health ----

@@ -174,6 +174,12 @@ TWILIO_SID: str = os.getenv("TWILIO_SID", "")
 TWILIO_TOKEN: str = os.getenv("TWILIO_TOKEN", "")
 TWILIO_FROM: str = os.getenv("TWILIO_FROM", "")
 
+# --- Auth (safety endpoints) ---
+# If set, all safety API endpoints require an Authorization: Bearer <token>
+# header. If empty, auth is skipped (local dev mode). Set this in .env
+# for any non-localhost deployment to prevent contact hijack attacks.
+AEROGRAPH_AUTH_TOKEN: str = os.getenv("AEROGRAPH_AUTH_TOKEN", "")
+
 
 # --- Spatial graph / session settings ---
 
@@ -243,6 +249,7 @@ class RuntimeState:
     telegram_enabled: bool = False
     whatsapp_enabled: bool = False
     twilio_enabled: bool = False
+    auth_enabled: bool = False
 
 
 runtime = RuntimeState()

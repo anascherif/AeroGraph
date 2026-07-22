@@ -604,6 +604,153 @@ def test_confirmation_worker_recovers_to_cooldown_on_exception() -> None:
 
 
 # ===========================================================================
+# 6. Security-fix regression tests (auth, phone validation, channel validation, rate limiting)
+# ===========================================================================
+def test_contact_phone_validation_rejects_garbage() -> None:
+    """HIGH fix: ContactCreateRequest must reject phone numbers with
+    invalid characters or too few/too many digits."""
+    from backend.api.safety import ContactCreateRequest
+    from pydantic import ValidationError
+
+    # Valid phones
+    valid = ContactCreateRequest(name="Mom", phone="+216 71 234 5678")
+    assert valid.phone == "+216 71 234 5678"
+    valid2 = ContactCreateRequest(name="Dad", phone="(+216) 55-123-456")
+    assert valid2.phone == "(+216) 55-123-456"
+
+    # Invalid: contains letters
+    try:
+        ContactCreateRequest(name="X", phone="call+21612345678")
+        # "call" contains 'c','a','l','l' which aren't in allowed set
+        raise AssertionError("Should have rejected phone with letters")
+    except ValidationError:
+        pass  # expected
+
+    # Invalid: too few digits
+    try:
+        ContactCreateRequest(name="X", phone="+12")
+        raise AssertionError("Should have rejected phone with <5 digits")
+    except ValidationError:
+        pass
+
+    # Invalid: too many digits
+    try:
+        ContactCreateRequest(name="X", phone="+" + "1" * 20)
+        raise AssertionError("Should have rejected phone with >15 digits")
+    except ValidationError:
+        pass
+
+    # Invalid: shell injection attempt
+    try:
+        ContactCreateRequest(name="X", phone="+216; rm -rf /")
+        raise AssertionError("Should have rejected phone with shell metacharacters")
+    except ValidationError:
+        pass
+
+    # Empty phone is OK (means "no phone for this contact")
+    valid_empty = ContactCreateRequest(name="Alice", phone="")
+    assert valid_empty.phone == ""
+
+    print("test_contact_phone_validation_rejects_garbage PASSED")
+
+
+def test_contact_channel_validation_filters_unknown() -> None:
+    """MEDIUM fix: ContactCreateRequest must filter out unknown channel names
+    from the channels list (only telegram, whatsapp, call allowed)."""
+    from backend.api.safety import ContactCreateRequest
+
+    # Valid channels pass through
+    req = ContactCreateRequest(
+        name="Mom",
+        channels=["telegram", "whatsapp", "call"],
+    )
+    assert req.channels == ["telegram", "whatsapp", "call"]
+
+    # Unknown channels are silently filtered out
+    req2 = ContactCreateRequest(
+        name="Dad",
+        channels=["telegram", "email", "sms", "fax", "carrier_pigeon"],
+    )
+    assert req2.channels == ["telegram"]
+
+    # All-garbage channels = empty list
+    req3 = ContactCreateRequest(
+        name="Eve",
+        channels=["evil", "hack", "; DROP TABLE contacts;"],
+    )
+    assert req3.channels == []
+
+    print("test_contact_channel_validation_filters_unknown PASSED")
+
+
+def test_rate_limiter_blocks_excess_requests() -> None:
+    """MEDIUM fix: the in-memory rate limiter must cap requests per IP."""
+    from backend.api.safety import RateLimiter
+    from fastapi import HTTPException
+
+    limiter = RateLimiter(max_requests=3, window_s=60.0)
+    # First 3 requests pass
+    limiter.check("1.2.3.4")
+    limiter.check("1.2.3.4")
+    limiter.check("1.2.3.4")
+    # 4th request must raise 429
+    try:
+        limiter.check("1.2.3.4")
+        raise AssertionError("Rate limiter should have blocked the 4th request")
+    except HTTPException as e:
+        assert e.status_code == 429, f"Expected 429, got {e.status_code}"
+
+    # Different IP is unaffected
+    limiter.check("5.6.7.8")
+
+    # Check that an empty key also works
+    limiter2 = RateLimiter(max_requests=2, window_s=60.0)
+    limiter2.check("unknown")
+    limiter2.check("unknown")
+    try:
+        limiter2.check("unknown")
+        raise AssertionError("Should have blocked")
+    except HTTPException as e:
+        assert e.status_code == 429
+
+    print("test_rate_limiter_blocks_excess_requests PASSED")
+
+
+def test_auth_dependency_passthrough_when_no_token() -> None:
+    """CRITICAL fix: when AEROGRAPH_AUTH_TOKEN is empty (local dev mode),
+    the auth dependency must allow requests through."""
+    import importlib
+    import backend.api.safety as safety_module
+    from backend.config import AEROGRAPH_AUTH_TOKEN
+
+    # If AEROGRAPH_AUTH_TOKEN is set in the environment, this test can't
+    # verify the passthrough path. Skip in that case.
+    if AEROGRAPH_AUTH_TOKEN:
+        print("test_auth_dependency_passthrough_when_no_token SKIPPED (env token set)")
+        return
+
+    # Reload the module to pick up the empty token
+    importlib.reload(safety_module)
+    import asyncio
+    # The require_auth dependency should be a no-op when no token is set
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(safety_module.require_auth(_DummyRequest()))
+    finally:
+        loop.close()
+
+    print("test_auth_dependency_passthrough_when_no_token PASSED")
+
+
+class _DummyRequest:
+    """Minimal stand-in for fastapi.Request for the auth dependency."""
+    def __init__(self):
+        self.headers = {}
+
+
+
+
+# ===========================================================================
 # Runner
 # ===========================================================================
 def run_all() -> None:
@@ -627,6 +774,11 @@ def run_all() -> None:
         test_stt_phrase_match_uses_word_boundaries,
         test_corrupt_contacts_file_is_backed_up_not_overwritten,
         test_confirmation_worker_recovers_to_cooldown_on_exception,
+        # Security-fix regression tests
+        test_contact_phone_validation_rejects_garbage,
+        test_contact_channel_validation_filters_unknown,
+        test_rate_limiter_blocks_excess_requests,
+        test_auth_dependency_passthrough_when_no_token,
     ]
     for t in tests:
         t()

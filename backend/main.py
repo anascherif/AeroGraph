@@ -20,6 +20,7 @@ from backend.config import (
     SESSIONS_DIR,
     DETECTION_CLASSES,
     DETECTION_CONFIDENCE,
+    AEROGRAPH_AUTH_TOKEN,
 )
 from backend.pipeline import registry
 from backend.pipeline.export_model import ensure_onnx_model
@@ -42,10 +43,19 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS for local front-end dev (v0, Figma, etc.)
+# CORS for local front-end dev.
+# Tightened from allow_origins=["*"] (which combined with no auth was a
+# contact-hijack vector) to explicit localhost origins. The frontend dev
+# server runs on localhost:3000; any additional origins can be added via
+# an env var if needed.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8765",
+        "http://127.0.0.1:8765",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -96,7 +106,7 @@ def _on_startup() -> None:
 
     # --- Safety subsystem: store + notifier bus + monitor -----------------
     try:
-        from backend.config import SAFETY_DIR, TELEGRAM_BOT_TOKEN, TWILIO_FROM, TWILIO_SID, TWILIO_TOKEN
+        from backend.config import SAFETY_DIR, TELEGRAM_BOT_TOKEN, TWILIO_FROM, TWILIO_SID, TWILIO_TOKEN, AEROGRAPH_AUTH_TOKEN
         from backend.pipeline.safety_store import SafetyStore
         from backend.notifiers.notifier_bus import NotifierBus
         from backend.pipeline.safety_monitor import SafetyMonitor
@@ -109,6 +119,7 @@ def _on_startup() -> None:
         runtime.notifier_bus_ready = True
         runtime.telegram_enabled = bool(TELEGRAM_BOT_TOKEN)
         runtime.twilio_enabled = bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM)
+        runtime.auth_enabled = bool(AEROGRAPH_AUTH_TOKEN)
         # WhatsApp is "enabled" if the bridge URL is reachable; we don't
         # ping it at startup to avoid boot delays — it self-reports per
         # contact at escalation time.
@@ -219,6 +230,7 @@ def health() -> dict[str, object]:
         "telegram_enabled": runtime.telegram_enabled,
         "whatsapp_enabled": runtime.whatsapp_enabled,
         "twilio_enabled": runtime.twilio_enabled,
+        "auth_enabled": runtime.auth_enabled,
     }
 
 

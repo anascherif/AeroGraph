@@ -63,3 +63,8 @@ AEROGRAPH_BRIEF.md
 
 # Tool artifacts
 .code-review-graph/
+
+# Skill installer artifacts (local-only, not project code)
+.agents/
+.claude/
+skills-lock.json
