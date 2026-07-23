@@ -18,8 +18,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'AeroGraph — Spatial Memory Engine',
   description:
-    'Spatial-temporal memory engine for visually impaired navigation: live object detection, environment change detection, and natural-language spatial recall.',
-  generator: 'v0.app',
+    'A spatial-temporal memory engine for visually impaired navigation: live object detection, environment change detection, and natural-language spatial recall.',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
