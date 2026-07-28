@@ -1,8 +1,9 @@
-// AeroGraph WhatsApp bridge (Baileys)
+// AeroGraph WhatsApp bridge (whatsapp-web.js)
 // -----------------------------------------------
 // Tiny local HTTP service that lets the Python backend send WhatsApp
-// messages (text + up to 3 JPEG photos) via the open-source Baileys
-// library, without paying for the WhatsApp Business API.
+// messages (text + up to 3 JPEG photos) via the whatsapp-web.js library,
+// which drives a real headless Chromium — looks like genuine WhatsApp Web
+// traffic, much lower ban-risk than Baileys.
 //
 // Contract:
 //   POST /send
@@ -12,62 +13,89 @@
 //   GET  /health
 //     resp: { ok: true, authenticated: bool, ready_to_send: bool }
 //
+//   GET  /qr
+//     resp: { qr: "<data-uri>" }  OR  { qr: null, authenticated: true }
+//
 // Auth:
-//   First run: a QR code prints to the terminal. Scan it with the WhatsApp
-//   app on your phone (Settings → Linked Devices → Link a Device). Auth
-//   state is persisted in ./auth/ (gitignored).
+//   First run: GET /qr returns a data URI; render it in a browser/QR scanner
+//   and scan with the WhatsApp app on your phone (Settings → Linked Devices
+//   → Link a Device). Auth state is persisted in ./auth/ (gitignored).
 //   Subsequent runs: no QR; uses persisted credentials.
 
 import express from "express";
-import pino from "pino";
-import qrcode from "qrcode-terminal";
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
+import pkg from "whatsapp-web.js";
+const { Client, LocalAuth, MessageMedia } = pkg;
+import QRCode from "qrcode";
+import { existsSync, writeFileSync, unlinkSync } from "node:fs";
 
-const logger = pino({ level: "info" });
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 
-let sock = null;
+let qrDataUri = null;
+let qrPngPath = "./qr.png";
 let ready = false;
 
-async function startSock() {
-  const { state, saveCreds } = await useMultiFileAuthState("./auth");
-  sock = makeWASocket({
-    auth: state,
-    logger,
-    printQRInTerminal: false,
-  });
+const client = new Client({
+  authStrategy: new LocalAuth({ dataPath: "./auth" }),
+  puppeteer: {
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
+  },
+});
 
-  sock.ev.on("creds.update", saveCreds);
+client.on("qr", async (qr) => {
+  try {
+    qrDataUri = await QRCode.toDataURL(qr, { width: 480, margin: 2 });
+    const pngBuf = await QRCode.toFile(qrPngPath, qr, { width: 480, margin: 2 });
+    console.log(`[whatsapp] QR saved to ${qrPngPath} — open it and scan with WhatsApp.`);
+    console.log("[whatsapp] Or GET http://127.0.0.1:7878/qr for a data URI.");
+  } catch (e) {
+    console.error("[whatsapp] Failed to render QR:", e.message);
+  }
+});
 
-  sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      console.log("\n[whatsapp] Scan this QR with your WhatsApp app:");
-      qrcode.generate(qr, { small: true });
-    }
-    if (connection === "open") {
-      ready = true;
-      console.log("[whatsapp] Connected and ready to send messages.");
-    } else if (connection === "close") {
-      ready = false;
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) {
-        console.log("[whatsapp] Connection closed, reconnecting...");
-        startSock();
-      } else {
-        console.log("[whatsapp] Logged out — delete ./auth/ and restart to re-pair.");
-      }
-    }
-  });
-}
+client.on("ready", () => {
+  ready = true;
+  qrDataUri = null;
+  if (existsSync(qrPngPath)) {
+    try { unlinkSync(qrPngPath); } catch {}
+  }
+  console.log("[whatsapp] Connected and ready to send messages.");
+});
 
-await startSock();
+client.on("authenticated", () => {
+  console.log("[whatsapp] Authenticated — session saved.");
+});
+
+client.on("auth_failure", (msg) => {
+  console.error("[whatsapp] Auth failure:", msg);
+});
+
+client.on("disconnected", (reason) => {
+  ready = false;
+  console.warn("[whatsapp] Disconnected:", reason);
+  // whatsapp-web.js will attempt to reconnect automatically.
+});
+
+client.initialize().catch((e) => {
+  console.error("[whatsapp] initialize() failed:", e);
+});
 
 // --- /health ----------------------------------------------------------------
 app.get("/health", (req, res) => {
   res.json({ ok: true, authenticated: ready, ready_to_send: ready });
+});
+
+// --- /qr --------------------------------------------------------------------
+// Returns the current QR as a data URI (for browser rendering), or null when
+// already authenticated. Useful for the frontend dashboard.
+app.get("/qr", (req, res) => {
+  res.json({ qr: ready ? null : qrDataUri, authenticated: ready });
 });
 
 // --- /send ------------------------------------------------------------------
@@ -87,19 +115,22 @@ app.post("/send", async (req, res) => {
         .status(503)
         .json({ ok: false, detail: "whatsapp not authenticated yet (scan QR)" });
     }
-    const jid = phone.endsWith("@s.whatsapp.net") ? phone : `${phone}@s.whatsapp.net`;
+
+    // whatsapp-web.js expects chatId in the form <number>@c.us
+    const chatId = phone.endsWith("@c.us") ? phone : `${phone}@c.us`;
 
     // 1. Send text
-    await sock.sendMessage(jid, { text });
+    await client.sendMessage(chatId, text);
 
     // 2. Send images (each as its own message — WhatsApp groups them visually)
     const imgs = Array.isArray(images_base64) ? images_base64.slice(0, 3) : [];
     for (let i = 0; i < imgs.length; i++) {
       const b64 = imgs[i];
       try {
-        const buf = Buffer.from(b64, "base64");
-        await sock.sendMessage(jid, {
-          image: buf,
+        // Strip any data-uri prefix ("data:image/jpeg;base64,")
+        const raw = b64.includes(",") ? b64.split(",")[1] : b64;
+        const media = new MessageMedia("image/jpeg", raw, `frame${i}.jpg`);
+        await client.sendMessage(chatId, media, {
           caption: i === 0 ? "AeroGraph: recent camera frames" : undefined,
         });
       } catch (e) {
@@ -119,8 +150,9 @@ app.post("/send", async (req, res) => {
 
 const PORT = Number(process.env.WA_BRIDGE_PORT || 7878);
 app.listen(PORT, "127.0.0.1", () => {
-  console.log(`[whatsapp] Baileys bridge listening on http://127.0.0.1:${PORT}`);
+  console.log(`[whatsapp] whatsapp-web.js bridge listening on http://127.0.0.1:${PORT}`);
   if (!ready) {
     console.log("[whatsapp] Waiting for QR scan / device link...");
+    console.log("[whatsapp] Open qr.png (or GET /qr) and scan with WhatsApp.");
   }
 });
