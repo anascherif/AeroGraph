@@ -3,3 +3,4 @@ auth/
 *.log
 .env
 npm-debug.log*
+qr.png

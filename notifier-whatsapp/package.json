@@ -1,20 +1,21 @@
-﻿{
-    "version":  "0.1.0",
-    "dependencies":  {
-                         "qrcode-terminal":  "^0.12.0",
-                         "express":  "^4.19.2",
-                         "pino":  "^9.0.0",
-                         "@whiskeysockets/baileys":  "^6.7.0"
-                     },
-    "name":  "aerograph-whatsapp-bridge",
-    "type":  "module",
-    "description":  "Local Baileys HTTP bridge that lets the Python AeroGraph backend send WhatsApp messages (text + up to 3 JPEG photos) without a paid WhatsApp Business API account.",
-    "engines":  {
-                    "node":  "\u003e=18"
-                },
-    "scripts":  {
-                    "start":  "node index.js",
-                    "dev":  "node index.js"
-                },
-    "main":  "index.js"
+{
+    "version": "0.1.0",
+    "dependencies": {
+        "@whiskeysockets/baileys": "^7.0.0-rc13",
+        "express": "^4.19.2",
+        "pino": "^9.0.0",
+        "qrcode": "^1.5.4",
+        "qrcode-terminal": "^0.12.0"
+    },
+    "name": "aerograph-whatsapp-bridge",
+    "type": "module",
+    "description": "Local Baileys HTTP bridge that lets the Python AeroGraph backend send WhatsApp messages (text + up to 3 JPEG photos) without a paid WhatsApp Business API account.",
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "start": "node index.js",
+        "dev": "node index.js"
+    },
+    "main": "index.js"
 }
