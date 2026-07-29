@@ -131,7 +131,6 @@ class TelegramNotifier:
             # 2. Keyframe photo carousel (up to 3).
             kfs = payload.keyframes_jpeg[:3]
             if kfs:
-                # python-telegram-bot InputMediaPhoto accepts BytesIO.
                 media = [
                     _bytes_io(jpeg, f"frame_{i}.jpg")
                     for i, jpeg in enumerate(kfs)
@@ -155,12 +154,29 @@ class TelegramNotifier:
                     )
                     await bot.send_photo(chat_id=chat_id, photo=_bytes_io(kfs[0]))
 
-            # 3. Synthesized voice note. Render via pyttsx3 to a temp file,
-            # then upload it. Render happens off the event loop via to_thread.
-            voice_path = await asyncio.to_thread(self._render_voice, text_msg)
+            # 3. Synthesized voice note. Render via SAPI5 to a temp file,
+            # then upload it. Use a shorter voice-specific text (the full
+            # alert summary is for the text message above — voice notes are
+            # ~10s max for usability, and TTS rendering 156 chars at 175 wpm
+            # blocks the upload thread long enough that Telegram's 20s
+            # default HTTP timeout fires). Render off the event loop.
+            voice_text = self._voice_summary(payload)
+            voice_path = await asyncio.to_thread(self._render_voice, voice_text)
             if voice_path:
-                with open(voice_path, "rb") as f:
-                    await bot.send_voice(chat_id=chat_id, voice=f)
+                try:
+                    with open(voice_path, "rb") as f:
+                        # Extend the per-call HTTP timeout for the upload —
+                        # the default 20s is too tight once TTS render +
+                        # network round-trip are added.
+                        await bot.send_voice(
+                            chat_id=chat_id, voice=f, read_timeout=45, write_timeout=45,
+                        )
+                except Exception:
+                    logger.exception(
+                        "TelegramNotifier: send_voice failed for %s", contact.id,
+                    )
+                    # Don't fail the whole alert just because the voice note
+                    # timed out — the text + keyframes already went through.
 
             return SendResult(
                 notifier=self.name,
@@ -195,6 +211,24 @@ class TelegramNotifier:
             u = contact.telegram_username
             return u if u.startswith("@") else f"@{u}"
         return None
+
+    @staticmethod
+    def _voice_summary(payload: AlertPayload) -> str:
+        """Short TTS-friendly summary for the voice note (≤ 60 chars / ~5s).
+
+        The full summary_text() is 156+ chars and takes ~10s to speak —
+        fine for a text message, too long for a Telegram voice note
+        (Telegram caps voice notes at ~30 minutes but anything over ~10s
+        loses listener attention, and the SAPI5 render + upload easily
+        exceeds Telegram's 20s default HTTP timeout).
+        """
+        import time as _t
+        ts = _t.strftime("%H:%M", _t.localtime(payload.started_at))
+        loc = payload.location_name or "unknown location"
+        return (
+            f"AeroGraph alert. {payload.user_name or 'the user'} may need help. "
+            f"Last seen {loc} at {ts}. Please check on them."
+        )
 
     @staticmethod
     def _render_voice(text: str) -> str | None:

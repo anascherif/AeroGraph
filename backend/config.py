@@ -144,6 +144,12 @@ STREAM_FPS: int = 5
 # ~30 KB per frame on 640×480.
 STREAM_JPEG_QUALITY: int = 70
 
+# Optional SAPI5 voice ID override. Leave empty to auto-detect the first
+# English voice on the system (the default). Set to a specific voice ID
+# (run `python -c "import pyttsx3; e=pyttsx3.init(); print([v.id for v in e.getProperty('voices')])"`)
+# if auto-detection picks the wrong one.
+TTS_VOICE_ID: str = os.getenv("AEROGRAPH_TTS_VOICE_ID", "")
+
 
 # --- Safety monitor (body-cam distress detection) ---
 #
