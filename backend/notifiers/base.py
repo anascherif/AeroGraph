@@ -2,7 +2,7 @@
 
 Three notifiers ship in this release:
   - TelegramNotifier  (primary)
-  - WhatsAppNotifier  (via local Baileys bridge)
+  - WhatsAppNotifier  (via local whatsapp-web.js bridge)
   - TwilioNotifier    (env-guarded, dry-run by default)
 
 The NotifierBus (notifier_bus.py) fans out to all enabled notifiers in

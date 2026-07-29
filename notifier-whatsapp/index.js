@@ -116,8 +116,10 @@ app.post("/send", async (req, res) => {
         .json({ ok: false, detail: "whatsapp not authenticated yet (scan QR)" });
     }
 
-    // whatsapp-web.js expects chatId in the form <number>@c.us
-    const chatId = phone.endsWith("@c.us") ? phone : `${phone}@c.us`;
+    // whatsapp-web.js expects chatId in the form <digits>@c.us. Strip any
+    // '+', spaces, dashes, or parentheses so callers can pass either format.
+    const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+    const chatId = cleanPhone.endsWith("@c.us") ? cleanPhone : `${cleanPhone}@c.us`;
 
     // 1. Send text
     await client.sendMessage(chatId, text);

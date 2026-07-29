@@ -12,13 +12,6 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSafetyStatus } from "@/lib/aerograph/hooks"
 import {
@@ -30,7 +23,8 @@ import {
   testSafetyAlert,
   voiceHeard,
 } from "@/lib/aerograph/client"
-import type { SafetyContact, SafetyIncident, SafetyState } from "@/lib/aerograph/types"
+import type { SafetyChannel, SafetyContact, SafetyIncident, SafetyState, SafetyStatus } from "@/lib/aerograph/types"
+import { useSafetyEvents } from "@/lib/aerograph/safety-events"
 
 const STATE_COLORS: Record<SafetyState, string> = {
   monitoring: "text-success",
@@ -56,7 +50,18 @@ function ContactsTab() {
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [telegramUsername, setTelegramUsername] = useState("")
-  const [channel, setChannel] = useState<string>("telegram")
+  // MINOR #26: channels is now a Set so the user can pick multiple at once
+  // (e.g. [telegram, whatsapp]). The previous <Select> only allowed one.
+  const [channels, setChannels] = useState<Set<string>>(new Set(["telegram"]))
+
+  const toggleChannel = (ch: string) => {
+    setChannels((prev) => {
+      const next = new Set(prev)
+      if (next.has(ch)) next.delete(ch)
+      else next.add(ch)
+      return next
+    })
+  }
 
   const load = async () => {
     setLoading(true)
@@ -88,13 +93,14 @@ function ContactsTab() {
         telegram_username: telegramUsername.startsWith("@")
           ? telegramUsername
           : telegramUsername ? `@${telegramUsername}` : "",
-        channels: [channel],
+        channels: Array.from(channels) as SafetyChannel[],
         notes: "",
       })
       setContacts((prev) => [...prev, newContact])
       setName("")
       setPhone("")
       setTelegramUsername("")
+      setChannels(new Set(["telegram"]))
     } catch (e) {
       setError(String(e))
     }
@@ -190,17 +196,30 @@ function ContactsTab() {
                 />
               </div>
               <div>
-                <Label>Channel</Label>
-                <Select value={channel} onValueChange={setChannel}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="telegram">Telegram</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="call">Voice call (Twilio)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Alert channels</Label>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Pick one or more. Each contact is alerted on every chosen channel.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    { id: "telegram", label: "Telegram" },
+                    { id: "whatsapp", label: "WhatsApp" },
+                    { id: "call", label: "Voice call (Twilio)" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.id}
+                      className="flex items-center gap-2 text-sm cursor-pointer rounded-md border px-3 py-2 hover:bg-accent"
+                    >
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-primary"
+                        checked={channels.has(opt.id)}
+                        onChange={() => toggleChannel(opt.id)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
               <Button onClick={handleAdd} disabled={!name.trim()}>
                 <Plus className="mr-1 size-4" />
@@ -232,7 +251,7 @@ function ContactsTab() {
             },
             {
               name: "WhatsApp",
-              hint: "Free, works in Tunisia. Requires Baileys bridge (node index.js).",
+              hint: "Free, works in Tunisia. Requires whatsapp-web.js bridge (node index.js).",
               ready: true,
             },
             {
@@ -263,10 +282,22 @@ function ContactsTab() {
 }
 
 function TestTab() {
-  const { safety } = useSafetyStatus()
+  const { safety: polled } = useSafetyStatus()
   const [statusMsg, setStatusMsg] = useState("")
   const [testing, setTesting] = useState(false)
-
+  // MINOR #30: subscribe to the safety WS for sub-second state updates and
+  // an "incidents" toast. We prefer the WS snapshot over the polled SWR data
+  // when the WS is connected; the polled value is the fallback if WS is down.
+  const [wsSafety, setWsSafety] = useState<SafetyStatus | undefined>(polled)
+  const { connected: wsConnected } = useSafetyEvents((evt) => {
+    if (evt.type === "snapshot") {
+      setWsSafety(evt.data as SafetyStatus)
+    } else if (evt.type === "state") {
+      const next = (evt as { data: { state: string } }).data.state
+      setWsSafety((prev) => (prev ? { ...prev, state: next as SafetyState } : prev))
+    }
+  })
+  const safety: SafetyStatus | undefined = wsConnected && wsSafety ? wsSafety : polled
   const state = (safety?.state ?? "unknown") as SafetyState
 
   const handleTestAlert = async () => {
@@ -306,7 +337,17 @@ function TestTab() {
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Current state</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            Current state
+            <span
+              className={`text-xs font-normal ${
+                wsConnected ? "text-success" : "text-muted-foreground"
+              }`}
+              title="Live event stream from /v1/safety/events WebSocket"
+            >
+              {wsConnected ? "● live (WebSocket)" : "○ polling"}
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
@@ -317,13 +358,13 @@ function TestTab() {
           <p className="text-sm text-muted-foreground">
             {STATE_LABELS[state] ?? ""}
           </p>
-          {safety?.confirmation_remaining_s > 0 && (
+          {safety && safety.confirmation_remaining_s > 0 && (
             <p className="mt-2 text-sm">
               Confirmation window:{" "}
               <strong>{Math.round(safety.confirmation_remaining_s)}s</strong> remaining
             </p>
           )}
-          {safety?.cooldown_remaining_s > 0 && (
+          {safety && safety.cooldown_remaining_s > 0 && (
             <p className="mt-2 text-sm">
               Cooldown: <strong>{Math.round(safety.cooldown_remaining_s)}s</strong> remaining
             </p>

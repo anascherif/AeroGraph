@@ -1,9 +1,10 @@
 """WhatsApp notifier — secondary, free, works in Tunisia.
 
-Calls the local Baileys bridge at WHATSAPP_BRIDGE_URL (default
+Calls the local whatsapp-web.js bridge at WHATSAPP_BRIDGE_URL (default
 http://127.0.0.1:7878). The bridge is a small Node.js subproject
-(``notifier-whatsapp/``) that uses the open-source Baileys library to send
-messages via the WhatsApp Web protocol. Bridge contract:
+(``notifier-whatsapp/``) that drives a real headless Chromium via
+whatsapp-web.js — looks like genuine WhatsApp Web traffic to the server.
+Bridge contract:
 
   POST /send
     body: {
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 
 import httpx
@@ -65,13 +67,30 @@ class WhatsAppNotifier:
                 success=False, detail="contact has no phone number",
             )
         body = {
-            "phone": contact.phone,
+            "phone": "".join(c for c in contact.phone if c.isdigit()),
             "text": payload.summary_text(),
             "images_base64": [
                 base64.b64encode(jpeg).decode("ascii")
                 for jpeg in payload.keyframes_jpeg[:3]
             ],
         }
+        # MINOR #29: pre-validate that the body round-trips through JSON with
+        # ensure_ascii=True so Arabic names ("محمد") don't silently get mangled
+        # into "??" or split surrogate pairs downstream. This is a no-op for
+        # ASCII content but catches UTF-8 issues at the notifier boundary
+        # instead of letting them surface as mojibake in the WhatsApp chat.
+        try:
+            json.dumps(body, ensure_ascii=True)
+        except (TypeError, ValueError) as e:
+            logger.warning(
+                "WhatsAppNotifier: payload is not JSON-serialisable "
+                "for %s: %s", contact.id, e,
+            )
+            return SendResult(
+                notifier=self.name, contact_id=contact.id,
+                success=False,
+                detail=f"payload not JSON-serialisable: {e}",
+            )
         try:
             # 5s connect + 10s read — matches the docstring claim that an
             # unreachable bridge fails fast rather than blocking the alert
