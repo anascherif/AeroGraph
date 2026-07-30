@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGraph — Pitch Deck</title>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@300,400,500,700&display=swap">
+    <style>
+        /* ===========================================
+           CSS CUSTOM PROPERTIES (NEON CYBER THEME)
+           =========================================== */
+        :root {
+            --bg-primary: #0a0f1c;
+            --bg-secondary: #111827;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --accent: #00ffcc;
+            --accent-alt: #ff00aa;
+            --accent-glow: rgba(0, 255, 204, 0.15);
+            --card-bg: rgba(255,255,255,0.03);
+            --card-border: rgba(255,255,255,0.06);
+            --font-display: 'Clash Display', sans-serif;
+            --font-body: 'Satoshi', sans-serif;
+            --title-size: 112px;
+            --subtitle-size: 28px;
+            --body-size: 20px;
+            --slide-padding: 80px;
+            --content-gap: 24px;
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --duration-normal: 0.6s;
+        }
+
+        /* ===========================================
+           FIXED 16:9 STAGE: MANDATORY BASE STYLES
+           =========================================== */
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--bg-primary); }
+        .deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--bg-primary); }
+        .deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--bg-primary); }
+        .slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--bg-primary); }
+        .slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+        img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+        .deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+        @media print {
+            html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+            .deck-viewport { position: static; overflow: visible; background: #fff; }
+            .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+            .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+            .slide:last-child { break-after: auto; page-break-after: auto; }
+            .deck-controls { display: none !important; }
+        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+        /* ===========================================
+           ANIMATIONS
+           =========================================== */
+        .reveal { opacity: 0; transform: translateY(30px); transition: opacity var(--duration-normal) var(--ease-out-expo), transform var(--duration-normal) var(--ease-out-expo); }
+        .slide.visible .reveal { opacity: 1; transform: translateY(0); }
+        .slide.visible .reveal:nth-child(1) { transition-delay: 0.05s; }
+        .slide.visible .reveal:nth-child(2) { transition-delay: 0.12s; }
+        .slide.visible .reveal:nth-child(3) { transition-delay: 0.19s; }
+        .slide.visible .reveal:nth-child(4) { transition-delay: 0.26s; }
+        .slide.visible .reveal:nth-child(5) { transition-delay: 0.33s; }
+        .slide.visible .reveal:nth-child(6) { transition-delay: 0.40s; }
+        .slide.visible .reveal:nth-child(7) { transition-delay: 0.47s; }
+        .slide.visible .reveal:nth-child(8) { transition-delay: 0.54s; }
+        .slide.visible .reveal:nth-child(9) { transition-delay: 0.61s; }
+        .slide.visible .reveal:nth-child(10) { transition-delay: 0.68s; }
+
+        /* ===========================================
+           NEON CYBER — GLOBAL STYLES
+           =========================================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        .grid-bg {
+            position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+        .gradient-bg {
+            position: absolute; inset: 0;
+            background:
+                radial-gradient(ellipse at 20% 80%, rgba(0,255,204,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(255,0,170,0.04) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        h1 { font-family: var(--font-display); font-weight: 700; color: var(--text-primary); }
+        h2 { font-family: var(--font-display); font-weight: 600; color: var(--text-primary); }
+        h3 { font-family: var(--font-display); font-weight: 500; color: var(--text-primary); }
+        p, li { font-family: var(--font-body); color: var(--text-secondary); line-height: 1.6; }
+        .accent { color: var(--accent); }
+        .accent-alt { color: var(--accent-alt); }
+        .small { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; font-weight: 500; color: var(--text-secondary); }
+
+        .scan-line {
+            position: absolute; left: 0; width: 100%; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,255,204,0.1), transparent);
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        .radar-pin {
+            display: inline-flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .radar-pin .outer { width: 60px; height: 60px; border: 2px solid var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px var(--accent-glow); }
+        .radar-pin .inner { width: 28px; height: 28px; border: 1px solid rgba(0,255,204,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .radar-pin .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 12px var(--accent); }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.3;
+        }
+
+        .glow-line {
+            width: 60px; height: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            box-shadow: 0 0 15px rgba(0,255,204,0.2);
+        }
+
+        /* ===========================================
+           SLIDE 1 — TITLE
+           =========================================== */
+        .title-slide {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+            position: relative;
+        }
+        .title-slide .radar-pin { margin-bottom: 32px; }
+        .title-slide .radar-pin .outer { width: 80px; height: 80px; }
+        .title-slide .radar-pin .inner { width: 38px; height: 38px; }
+        .title-slide .radar-pin .dot { width: 10px; height: 10px; }
+        .title-slide h1 { font-size: 128px; letter-spacing: -2px; line-height: 1; }
+        .title-slide h1 em { font-style: normal; color: var(--accent); }
+        .title-slide .tag { font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 20px; }
+        .title-slide .subtitle { font-size: 22px; color: rgba(255,255,255,0.4); max-width: 650px; margin-top: 20px; line-height: 1.6; }
+        .title-slide .glow-line { margin-top: 32px; }
+
+        /* ===========================================
+           SLIDE 2 — PROBLEM
+           =========================================== */
+        .problem-slide { padding: var(--slide-padding); display: flex; gap: 60px; }
+        .problem-slide .left { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .problem-slide .right { width: 440px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .problem-slide .stat { font-size: 80px; font-weight: 700; font-family: var(--font-display); color: var(--accent); line-height: 1; }
+        .problem-slide .stat-label { font-size: 18px; color: var(--text-secondary); margin-top: 4px; }
+        .problem-slide .stat-sub { font-size: 14px; color: rgba(255,255,255,0.3); margin-top: 24px; text-align: center; }
+        .problem-slide h2 { font-size: 44px; margin-bottom: 20px; }
+        .problem-slide p { font-size: 18px; color: var(--text-secondary); margin-bottom: 16px; max-width: 600px; }
+
+        /* ===========================================
+           SLIDE 3 — HOW IT WORKS
+           =========================================== */
+        .pipeline-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .pipeline-slide h2 { font-size: 40px; margin-bottom: 12px; }
+        .pipeline-slide .deck-subtitle { font-size: 18px; color: var(--text-secondary); margin-bottom: 40px; max-width: 700px; }
+        .pipeline-grid { display: flex; gap: 24px; }
+        .pipeline-grid .card { flex: 1; padding: 32px 28px; }
+        .pipeline-grid .card .step-number { font-size: 32px; font-weight: 700; font-family: var(--font-display); color: var(--accent); opacity: 0.5; margin-bottom: 8px; }
+        .pipeline-grid .card h3 { font-size: 20px; margin-bottom: 12px; }
+        .pipeline-grid .card p { font-size: 15px; color: var(--text-secondary); line-height: 1.7; }
+
+        /* ===========================================
+           SLIDE 4 — TECH STACK
+           =========================================== */
+        .tech-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .tech-slide h2 { font-size: 40px; margin-bottom: 36px; }
+        .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .tech-grid .card { padding: 24px; display: flex; gap: 16px; align-items: flex-start; }
+        .tech-grid .card .icon { width: 40px; height: 40px; flex-shrink: 0; border: 1px solid var(--card-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .tech-grid .card .icon.cyan { border-color: var(--accent); color: var(--accent); }
+        .tech-grid .card .icon.magenta { border-color: var(--accent-alt); color: var(--accent-alt); }
+        .tech-grid .card h3 { font-size: 16px; margin-bottom: 4px; }
+        .tech-grid .card p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+        .tech-slide .footnote { font-size: 14px; color: rgba(255,255,255,0.25); text-align: center; margin-top: 28px; font-style: italic; }
+
+        /* ===========================================
+           SLIDE 5 — DEMO DETECTION
+           =========================================== */
+        .demo-slide { padding: var(--slide-padding); display: flex; gap: 50px; align-items: center; }
+        .demo-slide .image-area { width: 800px; height: 540px; border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); }
+        .demo-slide .image-area img { width: 100%; height: 100%; object-fit: contain; }
+        .demo-slide .text-area { flex: 1; }
+        .demo-slide h2 { font-size: 36px; margin-bottom: 16px; }
+        .demo-slide .quote { font-size: 22px; color: var(--accent); font-weight: 400; line-height: 1.5; font-style: italic; margin-bottom: 20px; }
+        .demo-slide .features { list-style: none; }
+        .demo-slide .features li { font-size: 15px; color: var(--text-secondary); margin-bottom: 8px; padding-left: 24px; position: relative; }
+        .demo-slide .features li::before { content: '\2192'; position: absolute; left: 0; color: var(--accent); }
+        #detectionCanvas { width: 100%; height: 100%; background: #0d1117; border-radius: 6px; }
+
+        /* ===========================================
+           SLIDE 6 — ENVIRONMENT CHANGE
+           =========================================== */
+        .change-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .change-slide h2 { font-size: 36px; margin-bottom: 8px; }
+        .change-slide .example-text { font-size: 22px; color: var(--accent); margin-bottom: 36px; font-style: italic; }
+        .change-cols { display: flex; gap: 24px; }
+        .change-cols .col { flex: 1; border-radius: 8px; padding: 32px; }
+        .change-cols .col.before { background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); }
+        .change-cols .col.after { background: rgba(0,255,204,0.03); border: 1px solid rgba(0,255,204,0.1); }
+        .change-cols .col h3 { font-size: 20px; margin-bottom: 16px; }
+        .change-cols .col.before h3 { color: var(--text-secondary); }
+        .change-cols .col.after h3 { color: var(--accent); }
+        .change-cols .col ul { list-style: none; }
+        .change-cols .col ul li { font-size: 16px; color: var(--text-secondary); margin-bottom: 12px; padding-left: 20px; position: relative; line-height: 1.5; }
+        .change-cols .col.before ul li::before { content: '\2022'; position: absolute; left: 0; color: var(--text-secondary); }
+        .change-cols .col.after ul li::before { content: '\2192'; position: absolute; left: 0; color: var(--accent); }
+
+        /* ===========================================
+           SLIDE 7 — VOICE QUERY
+           =========================================== */
+        .voice-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .voice-slide h2 { font-size: 36px; margin-bottom: 36px; }
+        .voice-flow { display: flex; align-items: center; justify-content: center; gap: 0; }
+        .voice-flow .step { width: 280px; padding: 28px 20px; text-align: center; }
+        .voice-flow .step h3 { font-size: 16px; margin-bottom: 8px; }
+        .voice-flow .step p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+        .voice-flow .arrow { font-size: 28px; color: var(--accent); opacity: 0.4; width: 60px; text-align: center; flex-shrink: 0; }
+
+        .voice-example { display: flex; gap: 40px; margin-top: 36px; padding: 28px 32px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
+        .voice-example .bubble { flex: 1; }
+        .voice-example .bubble .speaker { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 500; margin-bottom: 6px; }
+        .voice-example .bubble .speaker.user { color: var(--text-secondary); }
+        .voice-example .bubble .speaker.grp { color: var(--accent); }
+        .voice-example .bubble .text { font-size: 18px; line-height: 1.5; }
+        .voice-example .bubble.user .text { color: var(--text-secondary); font-style: italic; }
+        .voice-example .bubble.grp .text { color: var(--accent); }
+
+        /* ===========================================
+           SLIDE 8 — SAFETY STATE MACHINE
+           =========================================== */
+        .safety-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .safety-slide h2 { font-size: 36px; margin-bottom: 36px; }
+        .states { display: flex; gap: 16px; align-items: flex-start; }
+        .states .state { flex: 1; padding: 24px 16px; border-radius: 8px; text-align: center; }
+        .states .state .label { font-family: var(--font-display); font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+        .states .state .desc { font-size: 13px; line-height: 1.6; }
+        .states .state.monitor { background: rgba(0,255,204,0.05); border: 1px solid rgba(0,255,204,0.1); }
+        .states .state.monitor .label { color: var(--accent); }
+        .states .state.confirm { background: rgba(255,170,0,0.05); border: 1px solid rgba(255,170,0,0.1); }
+        .states .state.confirm .label { color: #ffaa00; }
+        .states .state.escalate { background: rgba(255,0,100,0.05); border: 1px solid rgba(255,0,100,0.1); }
+        .states .state.escalate .label { color: #ff0064; }
+        .states .state.cooldown { background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); }
+        .states .state.cooldown .label { color: var(--text-secondary); }
+        .states .arrow { font-size: 24px; color: var(--text-secondary); opacity: 0.3; padding-top: 28px; flex-shrink: 0; }
+        .safety-slide .footnote { font-size: 14px; color: rgba(255,255,255,0.25); text-align: center; margin-top: 28px; }
+
+        /* ===========================================
+           SLIDE 9 — ALERTING
+           =========================================== */
+        .alert-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .alert-slide h2 { font-size: 36px; margin-bottom: 36px; }
+        .channels { display: flex; gap: 24px; justify-content: center; }
+        .channels .channel { flex: 1; max-width: 400px; padding: 32px 24px; text-align: center; border-radius: 8px; border: 1px solid var(--card-border); background: var(--card-bg); }
+        .channels .channel .pill { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; padding: 2px 10px; border-radius: 4px; margin-bottom: 12px; }
+        .channels .channel .pill.primary { background: rgba(0,255,204,0.1); color: var(--accent); border: 1px solid rgba(0,255,204,0.2); }
+        .channels .channel .pill.secondary { background: rgba(255,170,0,0.1); color: #ffaa00; border: 1px solid rgba(255,170,0,0.2); }
+        .channels .channel .pill.tertiary { background: rgba(255,255,255,0.03); color: var(--text-secondary); border: 1px solid var(--card-border); }
+        .channels .channel h3 { font-size: 22px; margin-bottom: 16px; }
+        .channels .channel p { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+
+        /* ===========================================
+           SLIDE 10 — 30-SECOND TIMELINE
+           =========================================== */
+        .timeline-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; }
+        .timeline-slide h2 { font-size: 36px; margin-bottom: 36px; }
+        .timeline { position: relative; padding: 0 40px; }
+        .timeline-track { position: absolute; left: 40px; right: 40px; top: 32px; height: 2px; background: rgba(0,255,204,0.15); }
+        .timeline-points { display: flex; justify-content: space-between; position: relative; }
+        .timeline-points .point { text-align: center; width: 180px; }
+        .timeline-points .point .dot { width: 20px; height: 20px; border-radius: 50%; margin: 0 auto 8px; border: 2px solid; display: flex; align-items: center; justify-content: center; }
+        .timeline-points .point .dot .inner { width: 8px; height: 8px; border-radius: 50%; }
+        .timeline-points .point .dot.active { border-color: var(--accent); }
+        .timeline-points .point .dot.active .inner { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+        .timeline-points .point .dot.warn { border-color: #ffaa00; }
+        .timeline-points .point .dot.warn .inner { background: #ffaa00; }
+        .timeline-points .point .dot.danger { border-color: #ff0064; }
+        .timeline-points .point .dot.danger .inner { background: #ff0064; }
+        .timeline-points .point .time { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .timeline-points .point .time.ok { color: var(--accent); }
+        .timeline-points .point .time.warn { color: #ffaa00; }
+        .timeline-points .point .time.danger { color: #ff0064; }
+        .timeline-points .point .time.neutral { color: var(--text-secondary); }
+        .timeline-points .point .plabel { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+        .timeline-points .point .pdesc { font-size: 12px; color: rgba(255,255,255,0.3); line-height: 1.4; }
+        .incident-card { margin-top: 36px; padding: 24px 32px; background: rgba(0,255,204,0.03); border: 1px solid rgba(0,255,204,0.1); border-radius: 8px; }
+        .incident-card p { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+        .incident-card .incident-id { font-family: var(--font-display); color: var(--accent); font-size: 14px; font-weight: 500; }
+        .incident-card .status-ok { color: var(--accent); }
+        .incident-card .status-skip { color: rgba(255,255,255,0.3); }
+
+        /* ===========================================
+           SLIDE 11 — WHY IT MATTERS
+           =========================================== */
+        .closing-why-slide { padding: var(--slide-padding); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .closing-why-slide h2 { font-size: 48px; margin-bottom: 40px; }
+        .closing-why-slide .checklist { list-style: none; max-width: 700px; }
+        .closing-why-slide .checklist li { font-size: 22px; color: var(--text-primary); margin-bottom: 16px; padding: 12px 24px; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); display: flex; align-items: center; gap: 16px; }
+        .closing-why-slide .checklist li .check { color: var(--accent); font-size: 24px; flex-shrink: 0; }
+
+        /* ===========================================
+           SLIDE 12 — THANK YOU
+           =========================================== */
+        .thank-slide { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .thank-slide .radar-pin { margin-bottom: 32px; }
+        .thank-slide .radar-pin .outer { width: 80px; height: 80px; }
+        .thank-slide .radar-pin .inner { width: 38px; height: 38px; }
+        .thank-slide .radar-pin .dot { width: 10px; height: 10px; }
+        .thank-slide h1 { font-size: 96px; letter-spacing: -2px; margin-bottom: 12px; }
+        .thank-slide .subtitle { font-size: 22px; color: var(--text-secondary); margin-bottom: 40px; }
+        .thank-slide .links { font-size: 16px; color: var(--text-secondary); }
+        .thank-slide .links a { color: var(--accent); text-decoration: none; }
+        .thank-slide .glow-line { margin-top: 32px; }
+
+        /* ===========================================
+           NAVIGATION
+           =========================================== */
+        .progress {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 2px;
+            background: rgba(255,255,255,0.05); z-index: 1000;
+        }
+        .progress .bar {
+            height: 100%; background: var(--accent); width: 0%;
+            transition: width 0.3s var(--ease-out-expo);
+            box-shadow: 0 0 10px var(--accent);
+        }
+        .slide-counter {
+            position: fixed; bottom: 14px; right: 24px; z-index: 1000;
+            font-family: var(--font-display); font-size: 13px; font-weight: 500;
+            color: rgba(255,255,255,0.2); letter-spacing: 1px;
+        }
+
+        /* ===========================================
+           INLINE EDITING
+           =========================================== */
+        .edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+        .edit-toggle { position: fixed; top: 8px; left: 8px; z-index: 10001; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 6px 12px; border-radius: 4px; font-family: var(--font-body); font-size: 12px; cursor: pointer; }
+        .edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+        .edit-toggle:hover { background: rgba(0,0,0,0.8); }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+
+            <!-- ============================================
+                 SLIDE 1: TITLE
+                 ============================================ -->
+            <section class="slide title-slide active" data-slide="1">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <div class="scan-line"></div>
+                <div class="radar-pin reveal">
+                    <div class="outer"><div class="inner"><div class="dot"></div></div></div>
+                </div>
+                <p class="tag reveal">Assistive Innovation Challenge 2026</p>
+                <h1 class="reveal">Aero<em>Graph</em></h1>
+                <p class="subtitle reveal">A spatial-temporal memory engine for visually impaired users —<br>detecting, remembering, and responding to your environment</p>
+                <div class="glow-line reveal"></div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 2: THE PROBLEM
+                 ============================================ -->
+            <section class="slide problem-slide" data-slide="2">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <div class="left">
+                    <p class="small reveal">The challenge</p>
+                    <h2 class="reveal">253 million people<br>visually impaired globally</h2>
+                    <p class="reveal">For a sighted person, walking into a room tells you everything: where the furniture is, what changed since yesterday, where you left your keys.</p>
+                    <p class="reveal">For a blind or low-vision person, every visit is a fresh scan. There is no &ldquo;memory of space.&rdquo; Objects move. Hazards appear. The environment changes silently.</p>
+                </div>
+                <div class="right reveal">
+                    <div class="stat">1 in 28</div>
+                    <p class="stat-label">people worldwide (WHO, 2023)</p>
+                    <p class="stat-sub">No existing tool provides<br>continuous spatial memory</p>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 3: HOW IT WORKS
+                 ============================================ -->
+            <section class="slide pipeline-slide" data-slide="3">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Architecture</p>
+                <h2 class="reveal">How it works</h2>
+                <p class="deck-subtitle reveal">Body-worn camera + on-device spatial graph + voice interface = a continuous photographic memory of the user's environment.</p>
+                <div class="pipeline-grid reveal">
+                    <div class="card reveal">
+                        <div class="step-number">01</div>
+                        <h3>Detect</h3>
+                        <p>YOLO11n ONNX pipeline detects 49 COCO classes at 5 FPS. Runs entirely on CPU — no GPU needed. Body-worn camera, user never in frame.</p>
+                    </div>
+                    <div class="card reveal">
+                        <div class="step-number">02</div>
+                        <h3>Graph</h3>
+                        <p>Spatial encoding into a vector store. Objects, locations, and timestamps indexed across 60+ sessions. Environment changes tracked per visit.</p>
+                    </div>
+                    <div class="card reveal">
+                        <div class="step-number">03</div>
+                        <h3>Query</h3>
+                        <p>Voice RAG via NVIDIA NIM (Groq STT fallback). Natural-language queries: &ldquo;Where did I leave the blue bottle?&rdquo; returns spatial answers.</p>
+                    </div>
+                    <div class="card reveal">
+                        <div class="step-number">04</div>
+                        <h3>Respond</h3>
+                        <p>SAPI5 TTS pinned to English voice. If user doesn't respond to safety prompt within 30s, family contacts escalate via Telegram + WhatsApp.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 4: TECH STACK
+                 ============================================ -->
+            <section class="slide tech-slide" data-slide="4">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">$0 budget &middot; CPU-only &middot; 11th Gen Intel i7</p>
+                <h2 class="reveal">Tech stack</h2>
+                <div class="tech-grid reveal">
+                    <div class="card reveal">
+                        <div class="icon cyan">CV</div>
+                        <div><h3>Computer Vision</h3><p>YOLO11n (ONNX Runtime) &mdash; 49 classes, ~0.3s per frame. No GPU required.</p></div>
+                    </div>
+                    <div class="card reveal">
+                        <div class="icon cyan">DB</div>
+                        <div><h3>Spatial Memory</h3><p>Vector store with location-aware embeddings. ChromaDB for persistent session storage.</p></div>
+                    </div>
+                    <div class="card reveal">
+                        <div class="icon magenta">API</div>
+                        <div><h3>Backend</h3><p>FastAPI + asyncio &mdash; 3-tier notifier bus (Telegram, WhatsApp, Twilio). All endpoints under /v1.</p></div>
+                    </div>
+                    <div class="card reveal">
+                        <div class="icon magenta">UI</div>
+                        <div><h3>Frontend</h3><p>Next.js 16 + React 19 + Tailwind v4 + shadcn/ui. Accessible dashboard with live WebSocket events.</p></div>
+                    </div>
+                    <div class="card reveal">
+                        <div class="icon cyan">Mic</div>
+                        <div><h3>Voice Input</h3><p>Whisper STT via Groq free tier. Natural-language understanding for spatial queries.</p></div>
+                    </div>
+                    <div class="card reveal">
+                        <div class="icon magenta">Speaker</div>
+                        <div><h3>Voice Output</h3><p>SAPI5 SpVoice via comtypes. Auto-detects English voice. Per-thread COM initialization.</p></div>
+                    </div>
+                </div>
+                <p class="footnote reveal">All models run locally &middot; No cloud costs &middot; 29-pass regression test suite</p>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 5: DEMO — LIVE DETECTION
+                 ============================================ -->
+            <section class="slide demo-slide" data-slide="5">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <div class="image-area reveal" id="detectionViz">
+                    <canvas id="detectionCanvas" width="800" height="540"></canvas>
+                </div>
+                <div class="text-area reveal">
+                    <p class="small reveal">Demo</p>
+                    <h2 class="reveal">Live detection</h2>
+                    <p class="quote reveal">&ldquo;Door ahead, 2 metres. Desk to your left. Chair behind you.&rdquo;</p>
+                    <ul class="features reveal">
+                        <li class="reveal">Camera feed annotated in real time with bounding boxes</li>
+                        <li class="reveal">49 COCO object classes detected at ~5 FPS</li>
+                        <li class="reveal">60+ past sessions stored and retrievable</li>
+                        <li class="reveal">TTS speaks detected objects + positions aloud</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 6: ENVIRONMENT CHANGE
+                 ============================================ -->
+            <section class="slide change-slide" data-slide="6">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Demo</p>
+                <h2 class="reveal">Environment change detection</h2>
+                <p class="example-text reveal">&ldquo;Your keys moved 1.2 metres to the right of the desk.&rdquo;</p>
+                <div class="change-cols reveal">
+                    <div class="col before reveal">
+                        <h3>Previous visit</h3>
+                        <ul>
+                            <li>Chair, desk, door, cardboard box</li>
+                            <li>Keys on desk (left side)</li>
+                            <li>No hazards detected</li>
+                        </ul>
+                    </div>
+                    <div class="col after reveal">
+                        <h3>Now</h3>
+                        <ul>
+                            <li>Same objects + new hazard (bottle on floor)</li>
+                            <li>Keys moved 1.2 metres right</li>
+                            <li>Alert: new obstacle detected at doorway</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 7: VOICE QUERY
+                 ============================================ -->
+            <section class="slide voice-slide" data-slide="7">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Demo</p>
+                <h2 class="reveal">Natural-language voice query</h2>
+                <div class="voice-flow reveal">
+                    <div class="step card reveal"><h3>Audio capture</h3><p>Whisper STT (Groq free tier) transcribes speech</p></div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="step card reveal"><h3>Embed + search</h3><p>Spatial graph query in vector store</p></div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="step card reveal"><h3>LLM answer</h3><p>NVIDIA NIM API generates spatial response</p></div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="step card reveal"><h3>TTS out</h3><p>SAPI5 English voice reads answer aloud</p></div>
+                </div>
+                <div class="voice-example reveal">
+                    <div class="bubble user reveal">
+                        <p class="speaker user">User</p>
+                        <p class="text">&ldquo;Where did I leave the blue bottle?&rdquo;</p>
+                    </div>
+                    <div class="bubble grp reveal">
+                        <p class="speaker grp">AeroGraph</p>
+                        <p class="text">&ldquo;The blue bottle is on the table in the kitchen, 2 metres to your left.&rdquo;</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 8: SAFETY STATE MACHINE
+                 ============================================ -->
+            <section class="slide safety-slide" data-slide="8">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Safety subsystem</p>
+                <h2 class="reveal">Safety monitor &mdash; distress detection</h2>
+                <div class="states reveal">
+                    <div class="state monitor reveal">
+                        <p class="label">Monitoring</p>
+                        <p class="desc">3 orthogonal signals: motion energy, vertical tilt (Farneback), brightness EMA drop &mdash; fused with 2/3 majority for &ge;8s</p>
+                    </div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="state confirm reveal">
+                        <p class="label">Confirming</p>
+                        <p class="desc">30s voice prompt: &ldquo;Are you okay? Say I'm okay.&rdquo; TTS repeats every 10s. Was-moving-within-60s guard prevents false alarms.</p>
+                    </div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="state escalate reveal">
+                        <p class="label">Escalating</p>
+                        <p class="desc">Multi-channel alert: Telegram (text + voice note), WhatsApp, and optional Twilio call. State machine tracks delivery.</p>
+                    </div>
+                    <div class="arrow">&#x2192;</div>
+                    <div class="state cooldown reveal">
+                        <p class="label">Cooldown</p>
+                        <p class="desc">60s pause before re-arming. Prevents re-trigger loops. Full state lock with per-worker watchdog.</p>
+                    </div>
+                </div>
+                <p class="footnote reveal">3-tier voice confirmation before escalation &middot; &ldquo;was-moving-within-60s&rdquo; guard &middot; 22 safety regression tests</p>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 9: MULTI-CHANNEL ALERTING
+                 ============================================ -->
+            <section class="slide alert-slide" data-slide="9">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Notifications</p>
+                <h2 class="reveal">Multi-channel alerting</h2>
+                <div class="channels reveal">
+                    <div class="channel reveal">
+                        <p class="pill primary">Primary</p>
+                        <h3>Telegram</h3>
+                        <p>Free, worldwide. Bot sends text + voice note to family contacts. Confirmed working with Arabic-safe payloads and 45s upload timeout.</p>
+                    </div>
+                    <div class="channel reveal">
+                        <p class="pill secondary">Secondary</p>
+                        <h3>WhatsApp</h3>
+                        <p>Free, works in Tunisia. Local Node.js bridge via whatsapp-web.js v1.34.7. Headless Chromium, QR pairing. Phone normalization strips +/spaces.</p>
+                    </div>
+                    <div class="channel reveal">
+                        <p class="pill tertiary">Tertiary</p>
+                        <h3>Twilio</h3>
+                        <p>Paid voice calls. Env-guarded, dry-run by default. TCPA-compliant opt-in. Configured as fallback when Telegram + WhatsApp are unreachable.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 10: 30-SECOND SAFETY FLOW
+                 ============================================ -->
+            <section class="slide timeline-slide" data-slide="10">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Verified</p>
+                <h2 class="reveal">The 30-second safety flow</h2>
+                <div class="timeline reveal">
+                    <div class="timeline-track"></div>
+                    <div class="timeline-points">
+                        <div class="point reveal">
+                            <div class="dot active"><div class="inner"></div></div>
+                            <p class="time ok">0s</p>
+                            <p class="plabel">Alert triggered</p>
+                            <p class="pdesc">3/3 signals fused<br>state = MONITORING</p>
+                        </div>
+                        <div class="point reveal">
+                            <div class="dot warn"><div class="inner"></div></div>
+                            <p class="time warn">+2s</p>
+                            <p class="plabel">Voice prompt</p>
+                            <p class="pdesc">TTS: &ldquo;Are you<br>okay?&rdquo; repeats 3x</p>
+                        </div>
+                        <div class="point reveal">
+                            <div class="dot danger"><div class="inner"></div></div>
+                            <p class="time danger">+30s</p>
+                            <p class="plabel">No response</p>
+                            <p class="pdesc">State machine<br>escalates</p>
+                        </div>
+                        <div class="point reveal">
+                            <div class="dot active"><div class="inner"></div></div>
+                            <p class="time ok">+31s</p>
+                            <p class="plabel">Telegram sent</p>
+                            <p class="pdesc">Text + voice note<br>delivered (200 OK)</p>
+                        </div>
+                        <div class="point reveal">
+                            <div class="dot warn"><div class="inner"></div></div>
+                            <p class="time neutral">+32s</p>
+                            <p class="plabel">WhatsApp sent</p>
+                            <p class="pdesc">When bridge<br>connected</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="incident-card reveal">
+                    <p>
+                        <span class="incident-id">inc_ebfb4714528b</span> &mdash; Real incident from test run:<br>
+                        <span class="status-ok">Telegram &rarr; 200 OK</span> (text + voice note)<br>
+                        <span class="status-skip">WhatsApp &rarr; bridge offline</span> (re-link after 24h cooldown)<br>
+                        State: monitored &rarr; confirmed (30s) &rarr; escalated &rarr; cooldown
+                    </p>
+                </div>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 11: WHY THIS MATTERS
+                 ============================================ -->
+            <section class="slide closing-why-slide" data-slide="11">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <p class="small reveal">Impact</p>
+                <h2 class="reveal">Why this matters</h2>
+                <ul class="checklist reveal">
+                    <li class="reveal"><span class="check">&#x2713;</span> $0 budget, CPU-only, runs on a standard laptop</li>
+                    <li class="reveal"><span class="check">&#x2713;</span> WhatsApp bridge using real headless Chromium — low ban risk</li>
+                    <li class="reveal"><span class="check">&#x2713;</span> Full 29-pass regression test suite (safety + temporal + pipeline)</li>
+                    <li class="reveal"><span class="check">&#x2713;</span> Accessible dashboard with voice-first UX and WebSocket live events</li>
+                    <li class="reveal"><span class="check">&#x2713;</span> End-to-end verified: 3-tier voice confirmation before family escalation</li>
+                </ul>
+            </section>
+
+            <!-- ============================================
+                 SLIDE 12: THANK YOU
+                 ============================================ -->
+            <section class="slide thank-slide" data-slide="12">
+                <div class="grid-bg"></div>
+                <div class="gradient-bg"></div>
+                <div class="scan-line"></div>
+                <div class="radar-pin reveal">
+                    <div class="outer"><div class="inner"><div class="dot"></div></div></div>
+                </div>
+                <h1 class="reveal">Thank you</h1>
+                <p class="subtitle reveal">Built for the Assistive Innovation Challenge 2026</p>
+                <p class="links reveal">
+                    Telegram: @AnasAeroGraphbot &nbsp;&middot;&nbsp;
+                    GitHub: <a href="https://github.com/anomalyco/AeroGraph" target="_blank">github.com/anomalyco/AeroGraph</a>
+                </p>
+                <div class="glow-line reveal"></div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ============================================
+         PROGRESS BAR
+         ============================================ -->
+    <div class="progress"><div class="bar" id="progressBar"></div></div>
+    <div class="slide-counter"><span id="slideNum">1</span> / 12</div>
+
+    <!-- ============================================
+         INLINE EDITING HOTZONE
+         ============================================ -->
+    <div class="edit-hotzone" id="editHotzone"></div>
+    <button class="edit-toggle" id="editToggle" title="Edit mode (E)">&#x270F;&#xFE0F; Edit</button>
+
+    <script>
+        /* ===========================================
+           SLIDE PRESENTATION CONTROLLER
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = document.querySelectorAll('.slide');
+                this.currentSlide = 0;
+                this.stage = document.getElementById('deckStage');
+                this.totalSlides = this.slides.length;
+                this.touchStartX = 0;
+                this.touchStartY = 0;
+                this.setupStageScale();
+                this.setupKeyboardNav();
+                this.setupTouchNav();
+                this.setupWheelNav();
+                this.showSlide(0);
+            }
+
+            setupStageScale() {
+                var self = this;
+                function scale() {
+                    var f = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    var x = (window.innerWidth - 1920 * f) / 2;
+                    var y = (window.innerHeight - 1080 * f) / 2;
+                    self.stage.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + f + ')';
+                }
+                scale();
+                window.addEventListener('resize', scale);
+            }
+
+            setupKeyboardNav() {
+                var self = this;
+                document.addEventListener('keydown', function(e) {
+                    if (e.target && e.target.getAttribute('contenteditable')) return;
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+                        e.preventDefault();
+                        self.next();
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+                        e.preventDefault();
+                        self.prev();
+                    } else if (e.key === 'Home') {
+                        e.preventDefault();
+                        self.showSlide(0);
+                    } else if (e.key === 'End') {
+                        e.preventDefault();
+                        self.showSlide(self.totalSlides - 1);
+                    }
+                });
+            }
+
+            setupTouchNav() {
+                var self = this;
+                document.addEventListener('touchstart', function(e) {
+                    self.touchStartX = e.changedTouches[0].screenX;
+                    self.touchStartY = e.changedTouches[0].screenY;
+                }, { passive: true });
+                document.addEventListener('touchend', function(e) {
+                    var dx = e.changedTouches[0].screenX - self.touchStartX;
+                    var dy = e.changedTouches[0].screenY - self.touchStartY;
+                    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+                        if (dx < 0) self.next();
+                        else self.prev();
+                    }
+                }, { passive: true });
+            }
+
+            setupWheelNav() {
+                var self = this;
+                document.addEventListener('wheel', function(e) {
+                    if (e.target.closest && e.target.closest('.edit-hotzone, .edit-toggle')) return;
+                    if (e.deltaY > 0) self.next();
+                    else self.prev();
+                }, { passive: true });
+            }
+
+            next() {
+                if (this.currentSlide < this.totalSlides - 1) {
+                    this.showSlide(this.currentSlide + 1);
+                }
+            }
+
+            prev() {
+                if (this.currentSlide > 0) {
+                    this.showSlide(this.currentSlide - 1);
+                }
+            }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.totalSlides - 1));
+                for (var i = 0; i < this.slides.length; i++) {
+                    this.slides[i].classList.toggle('active', i === this.currentSlide);
+                    this.slides[i].classList.toggle('visible', i === this.currentSlide);
+                }
+                document.getElementById('slideNum').textContent = this.currentSlide + 1;
+                var pct = ((this.currentSlide + 1) / this.totalSlides) * 100;
+                document.getElementById('progressBar').style.width = pct + '%';
+            }
+        }
+
+        new SlidePresentation();
+
+        /* ===========================================
+           INLINE EDITING
+           =========================================== */
+        var editor = {
+            isActive: false,
+            editToggle: document.getElementById('editToggle'),
+            hotzone: document.getElementById('editHotzone'),
+            hideTimeout: null,
+
+            toggleEditMode: function() {
+                this.isActive = !this.isActive;
+                this.editToggle.classList.toggle('active', this.isActive);
+                if (this.isActive) {
+                    document.body.setAttribute('contenteditable', 'true');
+                    this.editToggle.textContent = '\u270F\uFE0F Save (Ctrl+S)';
+                } else {
+                    document.body.removeAttribute('contenteditable');
+                    this.editToggle.textContent = '\u270F\uFE0F Edit';
+                    this.editToggle.classList.remove('show');
+                }
+            },
+
+            save: function() {
+                var html = document.documentElement.outerHTML;
+                var blob = new Blob([html], { type: 'text/html' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'aerograph-pitch-deck.html';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        };
+
+        // Hotzone hover with 400ms grace period
+        editor.hotzone.addEventListener('mouseenter', function() {
+            clearTimeout(editor.hideTimeout);
+            if (!editor.isActive) editor.editToggle.classList.add('show');
+        });
+        editor.hotzone.addEventListener('mouseleave', function() {
+            editor.hideTimeout = setTimeout(function() {
+                if (!editor.isActive) editor.editToggle.classList.remove('show');
+            }, 400);
+        });
+        editor.editToggle.addEventListener('mouseenter', function() {
+            clearTimeout(editor.hideTimeout);
+        });
+        editor.editToggle.addEventListener('mouseleave', function() {
+            editor.hideTimeout = setTimeout(function() {
+                if (!editor.isActive) editor.editToggle.classList.remove('show');
+            }, 400);
+        });
+
+        // Click toggle
+        editor.editToggle.addEventListener('click', function() {
+            editor.toggleEditMode();
+        });
+
+        // Hotzone click also toggles
+        editor.hotzone.addEventListener('click', function() {
+            editor.toggleEditMode();
+        });
+
+        // Keyboard shortcut: E key
+        document.addEventListener('keydown', function(e) {
+            if ((e.key === 'e' || e.key === 'E') && (!e.target || !e.target.getAttribute('contenteditable'))) {
+                editor.toggleEditMode();
+            }
+            if ((e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey) && editor.isActive) {
+                e.preventDefault();
+                editor.save();
+            }
+        });
+
+        /* ===========================================
+           DETECTION CANVAS — synthetic bounding boxes
+           =========================================== */
+        (function() {
+            var canvas = document.getElementById('detectionCanvas');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            var w = 800, h = 540;
+            canvas.width = w; canvas.height = h;
+
+            // Dark scene with room perspective lines
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+
+            // Floor line
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, h * 0.65);
+            ctx.lineTo(w, h * 0.65);
+            ctx.stroke();
+
+            // Perspective lines
+            ctx.beginPath();
+            ctx.moveTo(w * 0.2, h * 0.65);
+            ctx.lineTo(w * 0.1, h);
+            ctx.moveTo(w * 0.8, h * 0.65);
+            ctx.lineTo(w * 0.9, h);
+            ctx.stroke();
+
+            var objects = [
+                { label: 'door', x: 0.55, y: 0.18, bw: 0.20, bh: 0.42, color: '#00ffcc' },
+                { label: 'desk', x: 0.65, y: 0.52, bw: 0.28, bh: 0.14, color: '#00ffcc' },
+                { label: 'chair', x: 0.38, y: 0.60, bw: 0.14, bh: 0.16, color: '#00ffcc' },
+                { label: 'bottle', x: 0.72, y: 0.68, bw: 0.05, bh: 0.10, color: '#ff0064' },
+                { label: 'keys', x: 0.80, y: 0.54, bw: 0.06, bh: 0.04, color: '#ffaa00' },
+            ];
+
+            objects.forEach(function(obj) {
+                var bx = obj.x * w, by = obj.y * h;
+                var bw2 = obj.bw * w, bh2 = obj.bh * h;
+                ctx.strokeStyle = obj.color;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = obj.color;
+                ctx.shadowBlur = 8;
+                ctx.strokeRect(bx, by, bw2, bh2);
+                ctx.shadowBlur = 0;
+
+                // Label background
+                ctx.fillStyle = obj.color;
+                ctx.font = '11px Satoshi, sans-serif';
+                var label = obj.label + ' ' + (Math.round(obj.x * 100) / 100).toFixed(2);
+                var tw = ctx.measureText(label).width;
+                ctx.fillRect(bx, by - 18, tw + 10, 18);
+                ctx.fillStyle = '#0d1117';
+                ctx.fillText(label, bx + 5, by - 5);
+            });
+
+            // Scanning overlay animation
+            var scanY = 0;
+            var scanDir = 1;
+            setInterval(function() {
+                var s = document.getElementById('deckStage');
+                if (!s) return;
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.clearRect(0, 0, w, h);
+
+                // Redraw everything
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.65);
+                ctx.lineTo(w, h * 0.65);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(w * 0.2, h * 0.65);
+                ctx.lineTo(w * 0.1, h);
+                ctx.moveTo(w * 0.8, h * 0.65);
+                ctx.lineTo(w * 0.9, h);
+                ctx.stroke();
+
+                objects.forEach(function(obj) {
+                    var bx = obj.x * w, by = obj.y * h;
+                    var bw2 = obj.bw * w, bh2 = obj.bh * h;
+                    ctx.strokeStyle = obj.color;
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = obj.color;
+                    ctx.shadowBlur = 8;
+                    ctx.strokeRect(bx, by, bw2, bh2);
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = obj.color;
+                    ctx.font = '11px Satoshi, sans-serif';
+                    var label = obj.label;
+                    var tw = ctx.measureText(label).width;
+                    ctx.fillRect(bx, by - 18, tw + 10, 18);
+                    ctx.fillStyle = '#0d1117';
+                    ctx.fillText(label, bx + 5, by - 5);
+                });
+
+                // Scan line
+                ctx.fillStyle = 'rgba(0, 255, 204, 0.06)';
+                ctx.fillRect(0, scanY, w, 40);
+                ctx.fillStyle = 'rgba(0, 255, 204, 0.3)';
+                ctx.fillRect(0, scanY + 18, w, 2);
+                scanY += scanDir * 2;
+                if (scanY > h || scanY < 0) scanDir *= -1;
+            }, 30);
+        })();
+    </script>
+</body>
+</html>

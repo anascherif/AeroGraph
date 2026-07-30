@@ -1,0 +1,12 @@
+{
+  "name": "aerograph-pitch-deck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generator for the AeroGraph pitch deck. Lives at the repo root because the deck is part of the demo, not part of the application runtime.",
+  "scripts": {
+    "build:deck": "node scripts/build_pitch_deck.js"
+  },
+  "devDependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}

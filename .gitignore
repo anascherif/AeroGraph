@@ -68,3 +68,11 @@ AEROGRAPH_BRIEF.md
 .agents/
 .claude/
 skills-lock.json
+
+# Pitch-deck build artifacts (regenerate via `npm run build:deck`)
+docs/pitch-deck-thumbnails/
+
+# Root-level node_modules (for the deck-build script). Subproject
+# notifier-whatsapp/ has its own node_modules which is handled by its
+# own .gitignore.
+node_modules/

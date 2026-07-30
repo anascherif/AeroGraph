@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/header-banner.svg" alt="AeroGraph — Spatial memory engine for visually impaired users" width="100%">
+</p>
+
 # AeroGraph
 
 **A spatial memory engine for visually impaired users.**
