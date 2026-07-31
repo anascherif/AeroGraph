@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroGraph — Demo Teleprompter</title>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@300,400,500,700&display=swap">
+    <style>
+        /* ===========================================
+           THEME — matches pitch-deck.html (Neon Cyber)
+           =========================================== */
+        :root {
+            --bg-primary: #0a0f1c;
+            --bg-secondary: #111827;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --accent: #00ffcc;
+            --accent-alt: #ff00aa;
+            --accent-glow: rgba(0, 255, 204, 0.15);
+            --card-bg: rgba(255,255,255,0.03);
+            --card-border: rgba(255,255,255,0.06);
+            --font-display: 'Clash Display', sans-serif;
+            --font-body: 'Satoshi', sans-serif;
+            --font-mono: 'Satoshi', monospace;
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-body); line-height: 1.6; }
+
+        /* ===========================================
+           LAYOUT — single column, large type, max-width 900px
+           Optimized for glancing while standing/demos
+           =========================================== */
+        body { padding: 40px 24px 120px; max-width: 900px; margin: 0 auto; }
+
+        header { text-align: center; margin-bottom: 60px; padding-bottom: 32px; border-bottom: 1px solid var(--card-border); }
+        header .logo { font-family: var(--font-display); font-size: 36px; font-weight: 700; letter-spacing: -1px; margin-bottom: 8px; }
+        header .logo em { font-style: normal; color: var(--accent); }
+        header .tagline { font-size: 13px; letter-spacing: 3px; color: var(--text-secondary); text-transform: uppercase; }
+        header .meta { font-size: 13px; color: rgba(255,255,255,0.3); margin-top: 16px; font-family: var(--font-mono); }
+
+        /* ===========================================
+           ACTS — alternating background tint for visual rhythm
+           =========================================== */
+        .act { margin-bottom: 40px; padding: 36px 36px; border-radius: 12px; }
+        .act.setup { background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); }
+        .act.act-1 { background: rgba(0,255,204,0.03); border: 1px solid rgba(0,255,204,0.1); }
+        .act.act-2 { background: rgba(255,170,0,0.03); border: 1px solid rgba(255,170,0,0.1); }
+        .act.act-3 { background: rgba(255,0,100,0.03); border: 1px solid rgba(255,0,100,0.1); }
+        .act.close { background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); }
+
+        .act-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 24px; }
+        .act-number { font-family: var(--font-display); font-size: 64px; font-weight: 700; line-height: 1; }
+        .act-1 .act-number { color: var(--accent); }
+        .act-2 .act-number { color: #ffaa00; }
+        .act-3 .act-number { color: #ff0064; }
+        .act-header .titles h2 { font-family: var(--font-display); font-size: 36px; font-weight: 600; line-height: 1.1; }
+        .act-header .titles .duration { font-size: 14px; color: var(--text-secondary); margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; font-family: var(--font-mono); }
+
+        .cue { padding: 20px 0; border-top: 1px solid var(--card-border); display: flex; gap: 24px; align-items: flex-start; }
+        .cue:first-of-type { border-top: none; padding-top: 0; }
+        .cue .timestamp { width: 60px; flex-shrink: 0; font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text-secondary); padding-top: 4px; text-align: right; }
+        .cue .body { flex: 1; }
+        .cue .say { font-family: var(--font-display); font-size: 34px; font-weight: 500; color: var(--text-primary); line-height: 1.35; margin-bottom: 12px; }
+        .cue .say q { quotes: '"' '"'; color: var(--accent); }
+        .act-2 .cue .say q { color: #ffaa00; }
+        .act-3 .cue .say q { color: #ff0064; }
+        .cue .do { font-size: 16px; color: var(--text-secondary); padding-left: 16px; border-left: 2px solid var(--card-border); margin-top: 8px; }
+        .cue .do strong { color: var(--text-primary); font-weight: 500; }
+
+        /* ===========================================
+           SETUP CHECKLIST
+           =========================================== */
+        .checklist { list-style: none; margin-top: 16px; }
+        .checklist li { padding: 12px 0 12px 32px; position: relative; font-size: 18px; color: var(--text-secondary); }
+        .checklist li::before { content: '\25A1'; position: absolute; left: 0; color: var(--accent); font-size: 20px; line-height: 1; top: 14px; }
+        .checklist li code { background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 14px; color: var(--accent); }
+
+        /* ===========================================
+           FALLBACK / NOTES
+           =========================================== */
+        .fallback { background: rgba(255,255,255,0.02); border: 1px dashed var(--card-border); border-radius: 8px; padding: 20px 24px; margin-top: 24px; }
+        .fallback h4 { font-family: var(--font-display); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.4); margin-bottom: 12px; }
+        .fallback p { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.6; }
+        .fallback p code { background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+
+        /* ===========================================
+           SYNC CLAP BANNER
+           =========================================== */
+        .sync-clap {
+            background: linear-gradient(135deg, rgba(0,255,204,0.1), rgba(255,0,170,0.1));
+            border: 1px solid rgba(0,255,204,0.3);
+            border-radius: 12px;
+            padding: 24px 32px;
+            margin-bottom: 60px;
+            text-align: center;
+        }
+        .sync-clap .label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; font-family: var(--font-mono); }
+        .sync-clap .big { font-family: var(--font-display); font-size: 32px; font-weight: 600; color: var(--text-primary); }
+        .sync-clap .sub { font-size: 15px; color: var(--text-secondary); margin-top: 8px; }
+
+        /* ===========================================
+           SCROLL HINT
+           =========================================== */
+        .scroll-hint { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid var(--card-border); border-radius: 50px; padding: 10px 20px; font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); letter-spacing: 2px; z-index: 100; }
+        .scroll-hint .key { display: inline-block; padding: 2px 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin: 0 4px; color: var(--accent); }
+
+        @media (max-width: 600px) {
+            body { padding: 20px 16px 80px; }
+            .cue .say { font-size: 24px; }
+            .act-number { font-size: 44px; }
+            .act-header .titles h2 { font-size: 24px; }
+            .checklist li { font-size: 16px; }
+            .cue .timestamp { width: 50px; font-size: 11px; }
+            .cue { gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Aero<em>Graph</em></div>
+        <div class="tagline">Demo Teleprompter</div>
+        <div class="meta">150&ndash;180 second pre-recorded demo &middot; 3 acts &middot; single continuous take</div>    </header>
+
+    <!-- ============================================
+         SYNC CLAP BANNER
+         ============================================ -->
+    <div class="sync-clap">
+        <div class="label">Before you start Act 1</div>
+        <div class="big">One loud sync clap</div>
+        <div class="sub">Both cameras in frame. One sharp clap. This is what we use to align the two videos in editing.</div>
+    </div>
+
+    <!-- ============================================
+         SETUP ACT
+         ============================================ -->
+    <section class="act setup">
+        <div class="act-header">
+            <div class="act-number" style="color: var(--text-secondary);">0</div>
+            <div class="titles">
+                <h2>Pre-roll & Setup</h2>
+                <div class="duration">Before recording starts</div>
+            </div>
+        </div>
+        <p style="font-size: 18px; color: var(--text-secondary); margin-bottom: 8px;">Confirm all of these are running before you press record:</p>
+        <ul class="checklist">
+            <li>Backend running: <code>cd backend; python -m uvicorn api.main:app --port 8000</code></li>
+            <li>Frontend dashboard: <code>cd frontend; npm run dev</code></li>
+            <li>IP Webcam on chest-phone streaming &mdash; URL reachable from laptop</li>
+            <li>Dashboard "Live" tab shows bounding boxes when you move objects in frame</li>
+            <li>WhatsApp bridge (if QR cooled down): <code>cd notifier-whatsapp; node index.js</code></li>
+            <li>Telegram bot confirmed reachable (send a test message first)</li>
+            <li>Screen recording on laptop started (Win+G &rarr; record, or OBS)</li>
+            <li>Tripod phone recording started (1080p, 30fps)</li>
+            <li>Second monitor or phone has <strong>this</strong> teleprompter open for you to read</li>
+            <li>Both recordings running for at least 3 seconds of silence before the sync clap</li>
+        </ul>
+        <div class="fallback">
+            <h4>If the TTS voice is too quiet</h4>
+            <p>Open Windows Volume Mixer, raise the python/uvicorn process to 100%. Test once with a sentence before recording officially starts.</p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         ACT 1 — DETECT (60 seconds)
+         ============================================ -->
+    <section class="act act-1">
+        <div class="act-header">
+            <div class="act-number">1</div>
+            <div class="titles">
+                <h2>Detect</h2>
+                <div class="duration">Act 1 &middot; ~60 seconds</div>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:00</div>
+            <div class="body">
+                <p class="say"><q>AeroGraph is a spatial memory engine for visually impaired users. Right now, it is watching what I see through this chest-mounted camera.</q></p>
+                <p class="do"><strong>Do:</strong> Stand still, point at the laptop screen showing the dashboard Live tab.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:15</div>
+            <div class="body">
+                <p class="say"><q>Watch what it detects in real time.</q></p>
+                <p class="do"><strong>Do:</strong> Walk into frame holding a distinct object &mdash; a bottle, your phone, or keys. Move slowly so the bounding box locks on. Pause.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:25</div>
+            <div class="body">
+                <p class="say"><q>You can hear it announce the object out loud. No screen reader required &mdash; the TTS speaks it directly.</q></p>
+                <p class="do"><strong>Do:</strong> Wait for the TTS to finish speaking the detected object. ~5 seconds of silence.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:35</div>
+            <div class="body">
+                <p class="say"><q>It detects 49 object classes at about five frames per second, entirely on CPU. No cloud, no GPU.</q></p>
+                <p class="do"><strong>Do:</strong> Move a second object into frame (e.g. place a book on the desk). Wait for the detection + TTS.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:50</div>
+            <div class="body">
+                <p class="say"><q>Now I'm going to leave the room, and we'll see if it remembers.</q></p>
+                <p class="do"><strong>Do:</strong> Step out of frame entirely. Leave the object where it is. End Act 1.</p>
+            </div>
+        </div>
+
+        <div class="fallback">
+            <h4>If TTS doesn't fire</h4>
+            <p>Keep walking. Say: <q>The detection is logged even if TTS is quiet &mdash; the dashboard records every object.</q> The video can be saved by the screen recording catching the dashboard log.</p>
+            <h4 style="margin-top: 16px;">If no objects are being detected</h4>
+            <p>Walk closer to a lamp or window. YOLO11n needs reasonable light. Don't restart the backend live &mdash; just move.</p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         ACT 2 — REMEMBER (70 seconds)
+         ============================================ -->
+    <section class="act act-2">
+        <div class="act-header">
+            <div class="act-number">2</div>
+            <div class="titles">
+                <h2>Remember</h2>
+                <div class="duration">Act 2 &middot; ~70 seconds</div>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:60</div>
+            <div class="body">
+                <p class="say"><q>Now I'm coming back into the same room &mdash; but I've moved the keys.</q></p>
+                <p class="do"><strong>Do:</strong> While out of frame, move the keys about 1 metre to a new spot. Then walk back into frame.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:70</div>
+            <div class="body">
+                <p class="say"><q>AeroGraph doesn't just detect &mdash; it compares against its memory of the last visit.</q></p>
+                <p class="do"><strong>Do:</strong> Point at the dashboard. Switch to the Memory tab. The temporal diff should show &ldquo;keys moved 1.2 metres to the right.&rdquo;</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">00:85</div>
+            <div class="body">
+                <p class="say"><q>Your keys moved since your last visit. That's the spatial-temporal memory &mdash; not just what's here now, what changed.</q></p>
+                <p class="do"><strong>Do:</strong> Hold still on this line. The dashboard's temporal-diff card should be visible to the camera.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">01:00</div>
+            <div class="body">
+                <p class="say"><q>Let me ask it directly. For this demo, I'll click the microphone button &mdash; a production unit uses always-listening wake-word detection, no screen, no buttons.</q></p>
+                <p class="do"><strong>Do:</strong> Click the &ldquo;Ask&rdquo; tab. Move the cursor to the mic button. Hover &mdash; don't click yet. Say the line clearly.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">01:15</div>
+            <div class="body">
+                <p class="say"><q>Are the keys here?</q></p>
+                <p class="do"><strong>Do:</strong> Click the mic button. Speak the question aloud, clearly, about 2 feet from the laptop mic. Pause ~3 seconds &mdash; transcription + answer takes a moment.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">01:25</div>
+            <div class="body">
+                <p class="say"><q>Natural language in, natural language out. The TTS reads the answer aloud.</q></p>
+                <p class="do"><strong>Do:</strong> Stay silent &mdash; let the TTS voice say the answer first (&ldquo;Yes, the keys are on the desk, about 1 metre to your left.&rdquo;) Then deliver your line. Point at the Q&A log entry that just appeared on the dashboard.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">01:35</div>
+            <div class="body">
+                <p class="say"><q>That's voice RAG &mdash; retrieval-augmented generation over the spatial graph.</q></p>
+                <p class="do"><strong>Do:</strong> Hold still for 2 seconds. End Act 2.</p>
+            </div>
+        </div>
+
+        <div class="fallback">
+            <h4>If the temporal diff doesn't fire</h4>
+            <p>You can still save this beat. Say: <q>It also tracks new hazards &mdash; a bottle on the floor that wasn't there before.</q> Place a new object in frame and wait for the dashboard to log it as &ldquo;new object.&rdquo;</p>
+            <h4 style="margin-top: 16px;">If the dashboard log is empty</h4>
+            <p>Don't panic. Your line still works conceptually &mdash; the audio will stand on its own in the edit. Hold for a beat longer, then move on to the voice query.</p>
+            <h4 style="margin-top: 16px;">If the voice query doesn't transcribe / answer</h4>
+            <p>Stay calm &mdash; the temporal diff already landed. Skip the Q&A log beat entirely and fall back to: <q>If transcription fails, the dashboard also accepts typed queries &mdash; but the production path is always voice-initiated.</q> Move straight to Act 3.</p>
+            <h4 style="margin-top: 16px;">If the TTS doesn't speak the answer</h4>
+            <p>The text answer is still visible in the Q&A log &mdash; judges can see it. Just deliver your line as normal and move on. The audio can be replaced with a short voiceover in editing.</p>
+            <h4 style="margin-top: 16px;">If the first query is slow (~3s)</h4>
+            <p>That's expected &mdash; the CLIP keyframe index lazy-loads on the first query. This is why the recording-setup guide has you fire a warmup query <em>before</em> the take. If it's <em>still</em> slow live, just hold silently &mdash; the TTS will catch up within 5 seconds and the dead air can be trimmed in the edit.</p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         ACT 3 — RESPOND (95 seconds)
+         ============================================ -->
+    <section class="act act-3">
+        <div class="act-header">
+            <div class="act-number">3</div>
+            <div class="titles">
+                <h2>Respond</h2>
+                <div class="duration">Act 3 &middot; ~95 seconds</div>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">02:10</div>
+            <div class="body">
+                <p class="say"><q>This is the part that actually saves lives. If the user falls, faints, or stops responding, AeroGraph escalates automatically.</q></p>
+                <p class="do"><strong>Do:</strong> Stand in frame, both hands visible. Pause 2 seconds for the beat to land.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">02:25</div>
+            <div class="body">
+                <p class="say"><q>Three signals fire the alarm: motion energy drops, the image tilts, or the brightness falls. I'm going to trigger two of them now.</q></p>
+                <p class="do"><strong>Do:</strong> Stand completely still. Don't shift your weight. Get ready to cover the chest-phone camera with your hand.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">02:35</div>
+            <div class="body">
+                <p class="say"><q>Freezing &mdash; and covering the camera with my hand. Eight seconds of this triggers the monitor.</q></p>
+                <p class="do"><strong>Do:</strong> Cover the chest-phone lens fully with your palm. Stay perfectly still. Count silently to 10.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">02:45</div>
+            <div class="body">
+                <p class="say"><q>It's asking me if I'm okay. Thirty seconds to respond.</q></p>
+                <p class="do"><strong>Do:</strong> Do NOT respond. Keep the camera covered. Wait. The TTS will repeat the prompt every 10 seconds.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">03:15</div>
+            <div class="body">
+                <p class="say"><q>I didn't respond. The state machine escalated. Watch my phone.</q></p>
+                <p class="do"><strong>Do:</strong> Bring your phone into frame, screen on, Telegram notification visible. Hold for the camera for 5 seconds.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">03:25</div>
+            <div class="body">
+                <p class="say"><q>Telegram just sent a text and a voice note to my family contact. No app to install, no monthly fee &mdash; it's already there, on a phone they already have.</q></p>
+                <p class="do"><strong>Do:</strong> Tap the Telegram notification open so the chat is visible. Hold the phone steady.</p>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">03:40</div>
+            <div class="body">
+                <p class="say"><q>If I still don't respond, it falls back to WhatsApp, and optionally a paid Twilio voice call. Three independent tiers &mdash; no single point of failure.</q></p>
+                <p class="do"><strong>Do:</strong> Uncover the chest-phone camera. Act 3 ends.</p>
+            </div>
+        </div>
+
+        <div class="fallback">
+            <h4>If the alarm doesn't trigger in 8 seconds</h4>
+            <p>Stay covered for another 4&ndash;5 seconds. The fusion window can be slightly longer if the &ldquo;was-moving-within-60s&rdquo; guard needs to settle. If it still doesn't fire after 15s, remove your hand, say: <q>Let me re-arm the safety monitor.</q> Wait 10 seconds, then try again covering the camera.</p>
+            <h4 style="margin-top: 16px;">If Telegram is slow to arrive</h4>
+            <p>Don't narrate the delay. Stay silent, look at the phone. The notification almost always arrives within 5&ndash;10 seconds. If it doesn't arrive at all in 30s, switch to the fallback line: <q>In testing we've verified this fires every time &mdash; let me show you a previous successful incident.</q> Open the safety dashboard log showing <code>inc_ebfb4714528b</code>.</p>
+            <h4 style="margin-top: 16px;">If WhatsApp bridge isn't paired</h4>
+            <p>Skip the WhatsApp mention: <q>Telegram works today. WhatsApp is ready once the device QR is re-paired.</q> No need to dwell &mdash; the Telegram arrival is the moment.</p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         CLOSING ACT
+         ============================================ -->
+    <section class="act close">
+        <div class="act-header">
+            <div class="act-number" style="color: var(--accent);">4</div>
+            <div class="titles">
+                <h2>Close</h2>
+                <div class="duration">Closing &middot; ~15 seconds</div>
+            </div>
+        </div>
+
+        <div class="cue">
+            <div class="timestamp">03:50</div>
+            <div class="body">
+                <p class="say"><q>Detect. Remember. Respond. Built for zero budget, runs on a laptop, and it works today. This is AeroGraph.</q></p>
+                <p class="do"><strong>Do:</strong> Hold still for 2 seconds after the last word. Then stop both recordings.</p>
+            </div>
+        </div>
+
+        <div class="fallback">
+            <h4>If anything went wrong and you want to re-record</h4>
+            <p>You can retake just the failed act. Do a fresh sync clap before the retake (the editor can splice it where the old clip ended). Don't try to restart the whole 3-minute take &mdash; CapCut will let you swap a single section.</p>
+            <p>After the recording, before editing, watch both clips end-to-end once. Mark down which timestamp each act starts at &mdash; this is what you'll use with the edit cut list (<code>docs/demo-edit-cutlist.md</code>).</p>
+        </div>
+    </section>
+
+    <div class="scroll-hint"><span class="key">&darr;</span> or scroll to follow the script</div>
+
+    <script>
+        // Smooth keyboard scrolling
+        (function() {
+            var scrollAmount = 200;
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowDown' || e.key === ' ') {
+                    e.preventDefault();
+                    window.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    window.scrollBy({ top: -scrollAmount, behavior: 'smooth' });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

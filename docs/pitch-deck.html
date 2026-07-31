@@ -449,7 +449,7 @@
                     </div>
                     <div class="card reveal">
                         <div class="icon magenta">UI</div>
-                        <div><h3>Frontend</h3><p>Next.js 16 + React 19 + Tailwind v4 + shadcn/ui. Accessible dashboard with live WebSocket events.</p></div>
+                        <div><h3>Frontend</h3><p>Next.js 16 + React 19 + Tailwind v4 + shadcn/ui. Sighted demo view of an always-listening system.</p></div>
                     </div>
                     <div class="card reveal">
                         <div class="icon cyan">Mic</div>
@@ -523,9 +523,9 @@
                 <p class="small reveal">Demo</p>
                 <h2 class="reveal">Natural-language voice query</h2>
                 <div class="voice-flow reveal">
-                    <div class="step card reveal"><h3>Audio capture</h3><p>Whisper STT (Groq free tier) transcribes speech</p></div>
+                    <div class="step card reveal"><h3>Audio capture</h3><p>Wake-word detection (always-listening) or hardware push-to-talk — no screen interaction required</p></div>
                     <div class="arrow">&#x2192;</div>
-                    <div class="step card reveal"><h3>Embed + search</h3><p>Spatial graph query in vector store</p></div>
+                    <div class="step card reveal"><h3>Embed + search</h3><p>Whisper STT (Groq) transcribes &mdash; spatial graph query finds matches</p></div>
                     <div class="arrow">&#x2192;</div>
                     <div class="step card reveal"><h3>LLM answer</h3><p>NVIDIA NIM API generates spatial response</p></div>
                     <div class="arrow">&#x2192;</div>
@@ -667,7 +667,7 @@
                     <li class="reveal"><span class="check">&#x2713;</span> $0 budget, CPU-only, runs on a standard laptop</li>
                     <li class="reveal"><span class="check">&#x2713;</span> WhatsApp bridge using real headless Chromium — low ban risk</li>
                     <li class="reveal"><span class="check">&#x2713;</span> Full 29-pass regression test suite (safety + temporal + pipeline)</li>
-                    <li class="reveal"><span class="check">&#x2713;</span> Accessible dashboard with voice-first UX and WebSocket live events</li>
+                    <li class="reveal"><span class="check">&#x2713;</span> Voice-first UX &mdash; the dashboard is a sighted demo view; production is hands-free (wake-word or hardware button)</li>
                     <li class="reveal"><span class="check">&#x2713;</span> End-to-end verified: 3-tier voice confirmation before family escalation</li>
                 </ul>
             </section>
