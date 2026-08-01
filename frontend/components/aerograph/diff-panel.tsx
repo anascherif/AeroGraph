@@ -10,6 +10,7 @@ import {
   Minus,
   MoveRight,
   Plus,
+  Video,
   Volume2,
 } from "lucide-react"
 import { useMemo, useState } from "react"
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ApiError, diffCompare, diffLocation } from "@/lib/aerograph/client"
+import { ApiError, diffCompare, diffLive, diffLocation } from "@/lib/aerograph/client"
 import { useSessions } from "@/lib/aerograph/hooks"
 import { speak, speakSequence, ttsAvailable } from "@/lib/aerograph/tts"
 import type { DiffChange, DiffResponse, DiffStatus } from "@/lib/aerograph/types"
@@ -67,7 +68,7 @@ export function DiffPanel() {
     [data],
   )
 
-  const [mode, setMode] = useState<"location" | "sessions">("location")
+  const [mode, setMode] = useState<"location" | "sessions" | "live">("location")
   const [current, setCurrent] = useState("")
   const [reference, setReference] = useState("")
   const [location, setLocation] = useState("")
@@ -90,6 +91,12 @@ export function DiffPanel() {
           return
         }
         res = await diffLocation(location, current)
+      } else if (mode === "live") {
+        if (!location) {
+          toast.error("Select a location to compare the live camera against")
+          return
+        }
+        res = await diffLive(location, current)
       } else {
         if (!reference || !current) {
           toast.error("Select both sessions to compare")
@@ -116,6 +123,10 @@ export function DiffPanel() {
           <ModeButton active={mode === "sessions"} onClick={() => setMode("sessions")}>
             Compare two sessions
           </ModeButton>
+          <ModeButton active={mode === "live"} onClick={() => setMode("live")}>
+            <Video className="size-3.5 mr-1 inline-block" aria-hidden />
+            Compare to live camera
+          </ModeButton>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -136,6 +147,30 @@ export function DiffPanel() {
                 </Select>
               </Field>
               <Field label="Current session">
+                <SessionSelect
+                  sessions={sessions}
+                  value={current}
+                  onChange={setCurrent}
+                />
+              </Field>
+            </>
+          ) : mode === "live" ? (
+            <>
+              <Field label="Location">
+                <Select value={location} onValueChange={setLocation}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((l) => (
+                      <SelectItem key={l} value={l}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Active session (optional)">
                 <SessionSelect
                   sessions={sessions}
                   value={current}
@@ -165,7 +200,7 @@ export function DiffPanel() {
 
         <Button className="mt-4" size="lg" onClick={run} disabled={busy}>
           <GitCompareArrows className="size-4" aria-hidden />
-          {busy ? "Comparing…" : "Detect changes"}
+          {busy ? "Comparing…" : mode === "live" ? "Compare live now" : "Detect changes"}
         </Button>
       </div>
 
@@ -173,9 +208,17 @@ export function DiffPanel() {
         <DiffResult result={result} />
       ) : (
         <EmptyState
-          icon={GitCompareArrows}
-          title="Compare environment states"
-          description="Detect what's new, missing, or moved between two visits to the same place. Notes are written to be read aloud."
+          icon={mode === "live" ? Video : GitCompareArrows}
+          title={
+            mode === "live"
+              ? "Compare live camera to last visit"
+              : "Compare environment states"
+          }
+          description={
+            mode === "live"
+              ? "Snapshot what the camera sees right now and diff it against your last visit to the same place. Useful for catching what's been moved or left behind in real time."
+              : "Detect what's new, missing, or moved between two visits to the same place. Notes are written to be read aloud."
+          }
         />
       )}
     </div>
@@ -211,6 +254,12 @@ function DiffResult({ result }: { result: DiffResponse }) {
         <h3 className="text-lg font-bold">
           Changes at{" "}
           <span className="text-primary">{result.location_name}</span>
+          {result.live && (
+            <Badge className="ml-2 gap-1 bg-info/15 text-info" variant="outline">
+              <span className="size-1.5 animate-pulse rounded-full bg-info" aria-hidden />
+              LIVE
+            </Badge>
+          )}
         </h3>
         {ttsAvailable() && notableNotes.length > 0 && (
           <Button

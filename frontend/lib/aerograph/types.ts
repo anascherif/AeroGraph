@@ -130,6 +130,7 @@ export interface DiffResponse {
   location_name: string
   changes: DiffChange[]
   summary: DiffSummary
+  live?: boolean
 }
 
 export interface QueryResponse {

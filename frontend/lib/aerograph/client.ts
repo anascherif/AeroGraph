@@ -112,6 +112,12 @@ export const diffLocation = (location_name: string, current_session_id: string) 
     body: JSON.stringify({ location_name, current_session_id }),
   })
 
+export const diffLive = (location_name: string, session_id: string = "") =>
+  request<DiffResponse>("/v1/diff/live", {
+    method: "POST",
+    body: JSON.stringify({ location_name, session_id }),
+  })
+
 // ---- Query ----
 export const queryText = (
   question: string,

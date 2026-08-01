@@ -316,3 +316,42 @@ class CameraStream:
     def subscriber_count(self) -> int:
         with self._lock:
             return len(self._subscribers)
+
+    def get_live_snapshot(self) -> dict | None:
+        """Return the latest detection snapshot for diff comparisons.
+
+        Returns ``None`` if the camera has not yet produced a frame.
+        Shape:
+            {
+              "frame_shape": [h, w],
+              "detections": [{"class": str, "confidence": float,
+                              "bbox": [x1, y1, x2, y2],
+                              "centroid": [cx, cy]}, ...],
+              "timestamp": float,
+              "session_id": str,
+            }
+        """
+        with self._frame_lock:
+            frame = self._latest_frame
+            detections = list(self._latest_detections)
+        if frame is None:
+            return None
+        # Re-shape detections: include centroid for the diff engine.
+        shaped: list[dict] = []
+        h, w = frame.shape[:2]
+        for d in detections:
+            x1, y1, x2, y2 = d["bbox"]
+            shaped.append({
+                "class": d["class"],
+                "confidence": d.get("confidence", 0.0),
+                "bbox": [x1, y1, x2, y2],
+                "centroid": [(x1 + x2) / 2.0, (y1 + y2) / 2.0],
+                "frame_w": w,
+                "frame_h": h,
+            })
+        return {
+            "frame_shape": [h, w],
+            "detections": shaped,
+            "timestamp": time.time(),
+            "session_id": self._session_id,
+        }

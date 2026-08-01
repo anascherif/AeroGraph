@@ -150,6 +150,138 @@ class TemporalDiff:
         ref_id = candidates[0]["session_id"]
         return self.compare(ref_id, current_session_id)
 
+    def compare_live_to_location(
+        self,
+        location_name: str,
+        live_snapshot: dict[str, Any],
+        live_session_id: str = "",
+    ) -> Optional[dict[str, Any]]:
+        """Diff the *live* camera snapshot against the most recent stopped
+        session at ``location_name``.
+
+        ``live_snapshot`` shape:
+            {
+              "frame_shape": [h, w],
+              "detections": [{"class", "confidence", "bbox", "centroid",
+                              "frame_w", "frame_h"}, ...],
+              "timestamp": float,
+              "session_id": str,
+            }
+
+        Returns ``None`` if no previous session exists at that location.
+        """
+        sessions = self.sg.list_sessions()
+        # candidates: same location, stopped. Prefer a *previous* (different)
+        # session; if none exists but the active session itself is at this
+        # location and stopped in the past, use it.
+        candidates = [
+            s for s in sessions
+            if s["location_name"] == location_name
+            and s["stopped_at"] is not None
+            and s["session_id"] != live_session_id
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda s: s["started_at"], reverse=True)
+        ref_id = candidates[0]["session_id"]
+        ref = self.sg.get_manifest(ref_id)
+        if ref is None:
+            return None
+
+        ref_objs = self._indexed_objects(ref_id)
+        cur_objs = self._live_objects(live_snapshot)
+
+        ref_classes = set(ref_objs.keys())
+        cur_classes = set(cur_objs.keys())
+
+        changes: list[dict[str, Any]] = []
+        # shared
+        for cls in sorted(ref_classes & cur_classes):
+            changes.append(self._diff_same_class(cls, ref_objs[cls], cur_objs[cls]))
+        # only reference (missing)
+        for cls in sorted(ref_classes - cur_classes):
+            changes.append(self._missing_change(cls, ref_objs[cls]))
+        # only current (new)
+        for cls in sorted(cur_classes - ref_classes):
+            changes.append(self._new_change(cls, cur_objs[cls]))
+
+        status_order = {
+            NEW: 0,
+            MISSING: 1,
+            MOVED: 2,
+            CONTEXT_CHANGED: 3,
+            UNCHANGED: 4,
+        }
+        changes.sort(key=lambda ch: (status_order.get(ch["status"], 9), ch["object"]))
+
+        summary = {s: 0 for s in [UNCHANGED, MOVED, MISSING, NEW, CONTEXT_CHANGED]}
+        for ch in changes:
+            summary[ch["status"]] += 1
+
+        # Mark the "current" session as a synthetic live one so the UI can
+        # label it appropriately.
+        cur_summary = {
+            "session_id": "live_camera",
+            "location_name": location_name,
+            "started_at": live_snapshot.get("timestamp", 0.0),
+            "stopped_at": None,
+            "object_count": len(cur_objs),
+            "scene_count": 1,
+            "live": True,
+        }
+        return {
+            "reference_session": self.sg._summary(ref),
+            "current_session": cur_summary,
+            "location_name": location_name,
+            "changes": changes,
+            "summary": summary,
+            "live": True,
+        }
+
+    def _live_objects(self, live_snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Convert a live detection snapshot into the same shape as
+        :meth:`SpatialGraph.get_objects`.
+
+        Deduplication: a live snapshot is a single instant, so we collapse
+        duplicate classes by averaging their centroids (a single class
+        showing up twice in one frame is rare but handled).
+        """
+        detections = live_snapshot.get("detections", [])
+        by_class: dict[str, dict[str, Any]] = {}
+        for d in detections:
+            cls = d["class"]
+            cx, cy = d.get("centroid", [0, 0])
+            if cls not in by_class:
+                by_class[cls] = {
+                    "class": cls,
+                    "total_frames": 1,
+                    "first_seen": live_snapshot.get("timestamp", 0.0),
+                    "last_seen": live_snapshot.get("timestamp", 0.0),
+                    "last_bbox": d.get("bbox", [0, 0, 0, 0]),
+                    "last_centroid": [cx, cy],
+                    "frame_w": d.get("frame_w"),
+                    "frame_h": d.get("frame_h"),
+                    "avg_confidence": d.get("confidence", 0.0),
+                    "co_occurred_with": [],
+                }
+            else:
+                # average centroid (simple running mean)
+                e = by_class[cls]
+                e["total_frames"] += 1
+                e["avg_confidence"] = (e["avg_confidence"] + d.get("confidence", 0.0)) / 2
+                e["last_bbox"] = d.get("bbox", e["last_bbox"])
+                e["last_centroid"] = [
+                    (e["last_centroid"][0] + cx) / 2,
+                    (e["last_centroid"][1] + cy) / 2,
+                ]
+
+        # co-occurrence: every other class in the same snapshot
+        classes = sorted(by_class.keys())
+        for cls in classes:
+            by_class[cls]["co_occurred_with"] = [c for c in classes if c != cls]
+
+        return by_class
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
