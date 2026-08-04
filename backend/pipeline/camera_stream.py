@@ -31,6 +31,8 @@ from backend.config import (
 
 logger = logging.getLogger("aerograph.camera_stream")
 
+from backend.pipeline.detection_smoother import DetectionSmoother
+
 
 class CameraStream:
     """Singleton: open camera, run detection loop, broadcast results.
@@ -59,6 +61,10 @@ class CameraStream:
 
         self._last_keyframe_ts = 0.0
         self._fps_interval = 1.0 / STREAM_FPS if STREAM_FPS > 0 else 0.0
+
+        # Temporal smoother: applies 3-of-5 hit rate + 1.5s cooldown hold
+        # to suppress single-frame hallucinations and flicker.
+        self._smoother = DetectionSmoother()
 
     # ------------------------------------------------------------------
     # Subscriber lifecycle
@@ -149,15 +155,23 @@ class CameraStream:
                 frame_h, frame_w = frame.shape[:2]
 
                 # --- Run detection ---
-                detections: list[dict] = []
+                raw_detections: list[dict] = []
                 detector = registry.detector
                 if detector is not None:
                     try:
-                        detections = detector.detect(frame)
+                        raw_detections = detector.detect(frame)
                     except Exception:
                         logger.exception("Detection error on current frame")
 
                 ts = time.time()
+
+                # --- Smooth detections (3-of-5 hit rate + 1.5s cooldown) ---
+                # Smoothed output is what the spatial graph, keyframe index,
+                # snapshot cache and WS broadcast see. The safety monitor
+                # still gets the raw detections because it does its own
+                # motion-energy / brightness signal processing and should
+                # not be lagged by the smoother.
+                detections = self._smoother.smooth(raw_detections, ts)
 
                 # --- Feed spatial graph ---
                 sid = self._session_id
@@ -177,7 +191,7 @@ class CameraStream:
                 sm = registry.safety_monitor
                 if sm is not None:
                     try:
-                        sm.observe(frame, detections, ts)
+                        sm.observe(frame, raw_detections, ts)
                     except Exception:
                         logger.exception("Safety monitor observe() error")
 
