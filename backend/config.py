@@ -119,8 +119,28 @@ DETECTION_CLASSES: list[str] = [
     "teddy bear",
 ]
 
-# Confidence threshold for keeping a detection
-DETECTION_CONFIDENCE: float = 0.35
+# Confidence threshold for keeping a detection.
+# Raised from 0.35 → 0.55 to suppress single-frame YOLO hallucinations
+# (e.g. small metal objects briefly classified as "person" at conf ~0.45).
+# YOLO11n is well-calibrated; 0.55 keeps genuine detections with negligible
+# recall loss for clearly-visible objects in demo conditions.
+DETECTION_CONFIDENCE: float = float(os.getenv("AEROGRAPH_DET_CONF", "0.55"))
+
+# YOLO input image size (square). Smaller = faster inference, slightly worse
+# small-object recall. 416 is the sweet spot for CPU-only real-time; override
+# to 640 with the env var if you need maximum small-object sensitivity.
+YOLO_IMGSZ: int = int(os.getenv("AEROGRAPH_YOLO_IMGSZ", "416"))
+
+# --- Live-stream detection smoother ---
+#
+# Per-class rolling-window smoothing applied between YOLO and the spatial
+# graph / WebSocket broadcast. Eliminates single-frame flicker and
+# hallucinations by requiring a class to appear in ≥ MIN_HITS of the last
+# WINDOW frames before it is emitted, and holding it for COOLDOWN_S after
+# the last genuine sighting so a 1-2 frame occlusion doesn't make it vanish.
+DETECTION_SMOOTHER_WINDOW: int = 5        # remember the last 5 frames
+DETECTION_SMOOTHER_MIN_HITS: int = 3     # need 3-of-5 to keep a class
+DETECTION_SMOOTHER_COOLDOWN_S: float = 1.5  # hold for 1.5s after last sighting
 
 # Seconds between keyframe captures for the CLIP index
 KEYFRAME_INTERVAL_S: float = 3.0
@@ -133,11 +153,12 @@ PIXELS_PER_METER: float = 120.0
 
 # --- Live stream settings ---
 
-# Target frame rate for the detection loop.  On CPU-only, YOLO11n achieves
-# ~5–15 FPS, so we default to 5 to leave headroom for the WebSocket + graph
-# ingestion work. The actual rate adapts: if inference takes longer than the
-# interval, the loop simply continues without sleeping.
-STREAM_FPS: int = 5
+# Target frame rate for the detection loop.  On CPU-only with YOLO11n @
+# imgsz=416, inference is ~60-90ms, so 8 FPS (125ms interval) leaves
+# comfortable headroom for the WebSocket + graph ingestion + smoother work.
+# The actual rate adapts: if inference takes longer than the interval, the
+# loop simply continues without sleeping.
+STREAM_FPS: int = int(os.getenv("AEROGRAPH_STREAM_FPS", "8"))
 
 # JPEG quality (0–100) for the optional frame preview sent over the WebSocket.
 # Lower = smaller message, faster transfer. 70 gives a clear-ish image at
