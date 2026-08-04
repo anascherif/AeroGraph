@@ -17,6 +17,8 @@ import numpy as np
 
 from ultralytics import YOLO
 
+from backend.config import YOLO_IMGSZ
+
 logger = logging.getLogger("aerograph.detector")
 
 
@@ -82,7 +84,7 @@ class Detector:
             iou=0.45,
             device="cpu",
             verbose=False,
-            imgsz=640,
+            imgsz=YOLO_IMGSZ,
         )
         if not results:
             return []
